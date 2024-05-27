@@ -1,4 +1,4 @@
-type Handler = (req: Request, params: Record<string, unknown>) =>
+type Handler = (req: Request, params: Record<string, unknown>, query: URLSearchParams) =>
   | Promise<Response | void>
   | Response
   | void;
@@ -32,6 +32,7 @@ export class Router {
 
   async handler(req: Request): Promise<Response> {
     let res: Response | void;
+    const url = new URL(req.url);
 
     for (const route of this.routes) {
       if (
@@ -40,7 +41,9 @@ export class Router {
       ) {
         const result = route.pattern.exec(req.url);
         const params = result?.pathname.groups || {};
-        res = await route.handler(req, params);
+        const query = url.searchParams;
+
+        res = await route.handler(req, params, query);
         if (res) return res;
       }
     }
