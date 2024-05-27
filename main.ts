@@ -341,7 +341,20 @@ app.post('/:id/delete', async (req, params) => {
   });
 });
 
-async function get_paginated(url, pageSize = 150) {
+function sortByKey(array: any[], key) {
+  console.log(array);
+  return array.sort((a, b) => {
+    if (a[key] < b[key]) {
+      return -1;
+    }
+    if (a[key] > b[key]) {
+      return 1;
+    }
+    return 0; // values are equal
+  });
+}
+
+async function get_paginated(url, sortKey?: string, pageSize = 150,) {
   let allResults: any[] = [];
   let page = 1;
   let hasMore = true;
@@ -362,6 +375,10 @@ async function get_paginated(url, pageSize = 150) {
     page += 1;
   }
 
+  if (typeof sortKey !== "undefined") {
+    allResults = sortByKey(allResults, sortKey);
+  }
+
   const responseBody = JSON.stringify(allResults);
   return new Response(responseBody, {
     status: 200,
@@ -378,7 +395,9 @@ app.get('/api/languages', async (req) => {
 
   const res = await get_paginated(
     `${API_URL}languages?key=${API_KEY}&v=${API_VERSION_NUMBER}`,
+    'name'
   );
+
 
   await cache.put(req, res.clone());
   return res;
