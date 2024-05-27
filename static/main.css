@@ -35,8 +35,93 @@ p, h1, h2, h3, h4, h5, h6 {
 
 :root {
     --monospace: monospace;
-    --sans-serif: 'PT Sans', sans-serif;
-    --serif: 'PT Serif', serif;
+    --sans-serif: 'Noto Sans', 
+        'Noto Sans Arabic', 
+        'Noto Sans CJK', 
+        'Noto Sans Devanagari', 
+        'Noto Sans Bengali', 
+        'Noto Sans Thai', 
+        'Noto Sans Hebrew', 
+        'Noto Sans Tamil', 
+        'Noto Sans Kannada', 
+        'Noto Sans Telugu', 
+        'Noto Sans Gujarati', 
+        'Noto Sans Gurmukhi', 
+        'Noto Sans Malayalam', 
+        'Noto Sans Sinhala', 
+        'Noto Sans Armenian', 
+        'Noto Sans Georgian', 
+        'Noto Sans Khmer', 
+        'Noto Sans Lao', 
+        'Noto Sans Myanmar', 
+        'Noto Sans Ethiopic', 
+        'Noto Sans Thai Looped', 
+        'Noto Sans Tibetan', 
+        'Noto Sans Syriac', 
+        'Noto Sans Cherokee', 
+        'Noto Sans Canadian Aboriginal', 
+        'Noto Sans Ogham', 
+        'Noto Sans Runic', 
+        'Noto Sans Deseret', 
+        'Noto Sans Glagolitic', 
+        'Noto Sans Gothic', 
+        'Noto Sans Ol Chiki', 
+        'Noto Sans Osage', 
+        'Noto Sans Phags-pa', 
+        'Noto Sans Shavian', 
+        'Noto Sans Coptic', 
+        'Noto Sans Old Italic', 
+        'Noto Sans Osmanya', 
+        'Noto Sans Tifinagh', 
+        'Noto Sans Vai', 
+        'Noto Sans Cypriot', 
+        'Noto Sans Imperial Aramaic', 
+        'Noto Sans Carian', 
+        'Noto Sans Lycian', 
+        'Noto Sans Lydian', 
+        'Noto Sans Phoenician', 
+        'Noto Sans Anatolian Hieroglyphs', 
+        'Noto Sans Buginese', 
+        'Noto Sans Buhid', 
+        'Noto Sans Hanunoo', 
+        'Noto Sans Tagalog', 
+        'Noto Sans Tagbanwa', 
+        'Noto Sans Bassa Vah', 
+        'Noto Sans Duployan', 
+        'Noto Sans Elbasan', 
+        'Noto Sans Elymaic', 
+        'Noto Sans Grantha', 
+        'Noto Sans Khojki', 
+        'Noto Sans Khudawadi', 
+        'Noto Sans Lepcha', 
+        'Noto Sans Limbu', 
+        'Noto Sans Marchen', 
+        'Noto Sans Masaram Gondi', 
+        'Noto Sans Miao', 
+        'Noto Sans Modi', 
+        'Noto Sans Multani', 
+        'Noto Sans Nabataean', 
+        'Noto Sans New Tai Lue', 
+        'Noto Sans Nushu', 
+        'Noto Sans Palmyrene', 
+        'Noto Sans Pau Cin Hau', 
+        'Noto Sans Rejang', 
+        'Noto Sans Saurashtra', 
+        'Noto Sans Siddham', 
+        'Noto Sans Sora Sompeng', 
+        'Noto Sans Soyombo', 
+        'Noto Sans Sundanese', 
+        'Noto Sans Syloti Nagri', 
+        'Noto Sans Tai Tham', 
+        'Noto Sans Tai Viet', 
+        'Noto Sans Takri', 
+        'Noto Sans Thaana', 
+        'Noto Sans Tirhuta', 
+        'Noto Sans Ugaritic', 
+        'Noto Sans Warang Citi', 
+        'Noto Sans Yi', 
+        sans-serif;
+    --serif: 'Noto Serif', serif;
     --font-1-size: 12px;
     --font-2-size: 14px;
     --font-3-size: 16px;
@@ -68,23 +153,23 @@ p, h1, h2, h3, h4, h5, h6 {
 @media (prefers-color-scheme: light) {
     body:not([data-theme="d"]) {
         --error-color: #d71c1c;
-        --bg-color: #fdfdfd;
+        --bg-color: #ffffe7;
         --inverse-bg-color: #1a1a1a;
         --faint-bg-color: #eee;
         --color: #313131;
-        --faint-color: #9c9999;
+        --faint-color: #9c9c99;
         --link-color: #4e5192;
         --link-hover-color: #30325b;
         --code-bg-color: #202020;
         --border-color: #ccc;
         --focus-color: #9a9a9a;
-        --editor-bg-color: #ededed;
+        --editor-bg-color: #ffe4bb;
     }
 }
 
 [data-theme="l"] {
     --error-color: #d71c1c;
-    --bg-color: #fdfdfd;
+    --bg-color: #ffffe7;
     --inverse-bg-color: #1a1a1a;
     --faint-bg-color: #eee;
     --color: #313131;
@@ -94,7 +179,7 @@ p, h1, h2, h3, h4, h5, h6 {
     --code-bg-color: #202020;
     --border-color: #ccc;
     --focus-color: #9a9a9a;
-    --editor-bg-color: #ededed;
+    --editor-bg-color: #ffe4bb;
 }
 
 /* tags */
