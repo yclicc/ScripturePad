@@ -31,7 +31,7 @@ const layout = (title: string, content: string) => `
     <link rel="stylesheet" href="/codemirror.min.css">
     <link rel="stylesheet" href="/main.css">
     <title>
-      ${title || 'mdbin'}
+      ${title || 'ScripturePad'}
     </title>
   </head>
   <body>
@@ -46,7 +46,7 @@ const layout = (title: string, content: string) => `
       <div class="footer-links">
         <a href="/">new</a>
         <a href="/guide">guide</a>
-        <a href="https://github.com/kevinfiol/mdbin">source</a>
+        <a href="https://github.com/yclicc/ScripturePad">source</a>
       </div>
     </footer>
     <script src="/theme-switch.js"></script>
@@ -58,7 +58,7 @@ export const homePage = ({
   paste = '',
   url = '',
   errors = { url: '' },
-} = {}) => layout('mdbin', `
+} = {}) => layout('ScripturePad', `
   <main>
     ${Tabs()}
 
