@@ -1,4 +1,8 @@
-type Handler = (req: Request, params: Record<string, unknown>, query: URLSearchParams) =>
+type Handler = (
+  req: Request,
+  params: Record<string, unknown>,
+  query: URLSearchParams,
+) =>
   | Promise<Response | void>
   | Response
   | void;

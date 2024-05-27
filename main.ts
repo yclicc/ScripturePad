@@ -1,4 +1,5 @@
 import xss from 'xss';
+import langs from 'langs-es';
 import { Marked } from 'marked';
 import { load } from 'std/dotenv/mod.ts';
 import { resolve } from 'std/path/mod.ts';
@@ -24,6 +25,9 @@ interface TocItem {
 await load({ export: true });
 
 const SERVER_PORT = Deno.env.get('SERVER_PORT') ?? 8000;
+const API_KEY = Deno.env.get('API_KEY');
+const API_URL = 'https://4.dbt.io/api/';
+const API_VERSION_NUMBER = 4;
 const STATIC_ROOT = resolve('./static');
 const FILES = new Map<string, string>();
 const MIMES: Record<string, string> = {
@@ -42,7 +46,7 @@ const XSS_OPTIONS = {
     h4: ['id'],
     h5: ['id'],
     h6: ['id'],
-    input: ['disabled', 'type', 'checked']
+    input: ['disabled', 'type', 'checked'],
   },
 };
 
@@ -334,6 +338,79 @@ app.post('/:id/delete', async (req, params) => {
   return new Response(contents, {
     status,
     headers,
+  });
+});
+
+async function get_paginated(url, pageSize = 150) {
+  let allResults: any[] = [];
+  let page = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    const externalResponse = await fetch(
+      `${url}&limit=${pageSize}&page=${page}`,
+      {
+        method: 'GET',
+      },
+    );
+    const data = await externalResponse.json();
+    console.log(data);
+    allResults = allResults.concat(data.data);
+
+    // Check if there are more pages
+    hasMore = data.meta.pagination.total_pages > page;
+    page += 1;
+  }
+
+  const responseBody = JSON.stringify(allResults);
+  return new Response(responseBody, {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+app.get('/api/languages', async (req) => {
+  const cache = await caches.open('data-cache');
+  const cached = await cache.match(req);
+  if (cached) {
+    return cached;
+  }
+
+  const res = await get_paginated(
+    `${API_URL}languages?key=${API_KEY}&v=${API_VERSION_NUMBER}`,
+  );
+
+  await cache.put(req, res.clone());
+  return res;
+});
+
+app.get('/api/bibles', async (req, params, query) => {
+  const language_code = query.get('language_code') ?? 'eng';
+  if (query.has('media')) {
+    var media = '&media=' + query.get('media');
+  } else {
+    var media = 'text_plain';
+  }
+
+  const res = await get_paginated(
+    `${API_URL}bibles?key=${API_KEY}&v=${API_VERSION_NUMBER}&language_code=${language_code}${media}`,
+  );
+  return res;
+});
+
+app.get('/api/defaultbible', async (req, params, query) => {
+  const language = query.get('language_code');
+  const externalResponse = await fetch(
+    `${API_URL}bibles/defaults/types?language_code=${language}&key=${API_KEY}&v=${API_VERSION_NUMBER}`,
+    {
+      method: 'GET',
+    },
+  );
+
+  const responseBody = await externalResponse.text();
+  return new Response(responseBody, {
+    status: externalResponse.status,
+    headers: { 'content-type': 'application/json' },
   });
 });
 
