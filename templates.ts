@@ -109,6 +109,16 @@ export const homePage = ({
 
 export const pastePage = ({ id = '', html = '', title = '' } = {}) => layout(title, `
   <main>
+    <div class="dropdown-selectors">
+      <label for="language-select">Select Language: </label>
+      <select id="language-select" name="language-select">
+        <!-- Options will be populated here -->
+      </select>
+      <label for="version-select">Select Version: </label>
+      <select id="version-select" name="version-select">
+        <!-- Options will be populated here -->
+      </select>
+    </div>
     <div class="paste-container">
       ${html}
     </div>
@@ -117,6 +127,7 @@ export const pastePage = ({ id = '', html = '', title = '' } = {}) => layout(tit
       <a class="btn" href="/${id}/edit">edit</a>
       <a class="btn" href="/${id}/delete">delete</a>
     </div>
+    <script src="/viewer.js"></script>
   </main>
 `);
 
