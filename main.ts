@@ -354,7 +354,7 @@ function sortByKey(array: any[], key) {
   });
 }
 
-async function get_paginated(url, sortKey?: string, pageSize = 150,) {
+async function get_paginated(url, sortKey?: string, pageSize = 150) {
   let allResults: any[] = [];
   let page = 1;
   let hasMore = true;
@@ -375,7 +375,7 @@ async function get_paginated(url, sortKey?: string, pageSize = 150,) {
     page += 1;
   }
 
-  if (typeof sortKey !== "undefined") {
+  if (typeof sortKey !== 'undefined') {
     allResults = sortByKey(allResults, sortKey);
   }
 
@@ -395,13 +395,12 @@ app.get('/api/languages', async (req) => {
 
   const res = await get_paginated(
     `${API_URL}languages?key=${API_KEY}&v=${API_VERSION_NUMBER}`,
-    'name'
+    'name',
   );
-
 
   await cache.put(req, res.clone());
   return res;
-});
+}, true);
 
 app.get('/api/bibles', async (req, params, query) => {
   const language_code = query.get('language_code') ?? 'eng';
@@ -415,7 +414,7 @@ app.get('/api/bibles', async (req, params, query) => {
     `${API_URL}bibles?key=${API_KEY}&v=${API_VERSION_NUMBER}&language_code=${language_code}${media}`,
   );
   return res;
-});
+}, true);
 
 app.get('/api/defaultbible', async (req, params, query) => {
   const language = query.get('language_code');
@@ -431,7 +430,7 @@ app.get('/api/defaultbible', async (req, params, query) => {
     status: externalResponse.status,
     headers: { 'content-type': 'application/json' },
   });
-});
+}, true);
 
 Deno.serve({ port: Number(SERVER_PORT) }, app.handler.bind(app));
 
