@@ -137,7 +137,7 @@ p, h1, h2, h3, h4, h5, h6 {
     --spacing-6: 2rem;
 
     --error-color: #d71c1c;
-    --bg-color: #1c1c1c;
+    --bg-color: #4e3d05;
     --dark-bg-color: #1a1a1a;
     --light-bg-color: #222;
     --color: #d2d2d2;
@@ -146,7 +146,7 @@ p, h1, h2, h3, h4, h5, h6 {
     --code-bg-color: #2d2d2d;
     --border-color: #4a4a4a;
     --focus-color: #9a9a9a;
-    --editor-bg-color: #292929;
+    --editor-bg-color: #615605;
 }
 
 /* light theme */
