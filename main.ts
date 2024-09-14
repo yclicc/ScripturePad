@@ -394,7 +394,7 @@ app.get('/api/languages', async (req) => {
   }
 
   const res = await get_paginated(
-    `${API_URL}languages?key=${API_KEY}&v=${API_VERSION_NUMBER}`,
+    `${API_URL}languages?key=${API_KEY}&v=${API_VERSION_NUMBER}&media=text`,
     'name',
   );
 
