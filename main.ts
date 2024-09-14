@@ -371,7 +371,8 @@ async function get_paginated(url, sortKey?: string, pageSize = 150) {
     allResults = allResults.concat(data.data);
 
     // Check if there are more pages
-    hasMore = data.meta.pagination.total_pages > page;
+    const total_pages = data.meta.pagination.total_pages || data.meta.pagination.last_page;
+    hasMore = total_pages > page;
     page += 1;
   }
 
