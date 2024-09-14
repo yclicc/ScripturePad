@@ -395,7 +395,7 @@ app.get('/api/languages', async (req) => {
   }
 
   const res = await get_paginated(
-    `${API_URL}languages?key=${API_KEY}&v=${API_VERSION_NUMBER}&media=text`,
+    `${API_URL}languages?key=${API_KEY}&v=${API_VERSION_NUMBER}`,
     'name',
   );
 
@@ -404,15 +404,20 @@ app.get('/api/languages', async (req) => {
 }, true);
 
 app.get('/api/bibles', async (req, params, query) => {
-  const language_code = query.get('language_code') ?? 'eng';
-  if (query.has('media')) {
-    var media = '&media=' + query.get('media');
+  let language_code, media;
+  if (query.has('language_code')) {
+    language_code = '&language_code=' + query.get('language_code');
   } else {
-    var media = 'text_plain';
+    language_code = '';
+  }
+  if (query.has('media')) {
+    media = '&media=' + query.get('media');
+  } else {
+    media = '&media=text_plain';
   }
 
   const res = await get_paginated(
-    `${API_URL}bibles?key=${API_KEY}&v=${API_VERSION_NUMBER}&language_code=${language_code}${media}`,
+    `${API_URL}bibles?key=${API_KEY}&v=${API_VERSION_NUMBER}${language_code}${media}`, undefined, 50
   );
   return res;
 }, true);
