@@ -1,4 +1,5 @@
 import xss from 'xss';
+// Will be needed to translate from 3 character iso code (used by dbt) to a two character one used by machine translators (and back)
 import langs from 'langs-es';
 import { Marked } from 'marked';
 import { load } from 'std/dotenv/mod.ts';
@@ -413,12 +414,24 @@ app.get('/api/bibles', async (req, params, query) => {
   if (query.has('media')) {
     media = '&media=' + query.get('media');
   } else {
-    media = '&media=text_plain';
+    media = '';
+  }
+  let could_cache = false
+  const cache = await caches.open('data-cache');
+  if (!query.has('language_code') && !query.has('media')) {
+    could_cache = true;
+    const cached = await cache.match(req);
+    if (cached) {
+      return cached
+    }
   }
 
   const res = await get_paginated(
     `${API_URL}bibles?key=${API_KEY}&v=${API_VERSION_NUMBER}${language_code}${media}`, undefined, 50
   );
+  if (could_cache) {
+    await cache.put(req, res.clone());
+  }
   return res;
 }, true);
 
