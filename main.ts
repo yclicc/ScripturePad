@@ -388,52 +388,94 @@ async function get_paginated(url, sortKey?: string, pageSize = 150) {
   });
 }
 
-app.get('/api/languages', async (req) => {
+function hasWholeBible(bible) {
+  let hasOt = false;
+  let hasNt = false;
+
+  const filesets = bible.filesets?.['dbp-prod'] || [{ type: null }];
+  
+  for (let item of filesets) {
+      if (["text_format", "text_plain"].includes(item.type)) {
+          let size = item.size;
+          if (size.includes("OT") && !size.includes("OTP")) {
+              hasOt = true;
+          } else if (size.includes("NT") && !size.includes("NTP")) {
+              hasNt = true;
+          } else if (size === "C") {
+              hasOt = true;
+              hasNt = true;
+          }
+      }
+  }
+  
+  return hasOt && hasNt;
+}
+
+function collectCompleteBibles(data) {
+  const completeBibles = {};
+
+  for (let bible of data) {
+      const { language, autonym, iso, name, filesets } = bible;
+
+      if (hasWholeBible(bible)) {
+          if (!completeBibles[language]) {
+              completeBibles[language] = {
+                  autonym: autonym,
+                  iso: iso,
+                  bibles: {}
+              };
+          }
+
+          // Add the Bible name and its filesets to the appropriate language
+          completeBibles[language].bibles[name] = filesets;
+      }
+  }
+
+  // Sort languages alphabetically
+  const sortedLanguages = Object.keys(completeBibles).sort();
+
+  const sortedCompleteBibles = {};
+
+  // Sort the Bibles for each language alphabetically by Bible name
+  for (let lang of sortedLanguages) {
+      const bibles = completeBibles[lang].bibles;
+      const sortedBibles = Object.keys(bibles).sort().reduce((sorted, bibleName) => {
+          sorted[bibleName] = bibles[bibleName];
+          return sorted;
+      }, {});
+
+      sortedCompleteBibles[lang] = {
+          autonym: completeBibles[lang].autonym,
+          iso: completeBibles[lang].iso,
+          bibles: sortedBibles
+      };
+  }
+
+  return sortedCompleteBibles;
+}
+
+app.get('/api/completebibles', async (req) => {
   const cache = await caches.open('data-cache');
   const cached = await cache.match(req);
   if (cached) {
-    return cached;
+    return cached
   }
 
-  const res = await get_paginated(
-    `${API_URL}languages?key=${API_KEY}&v=${API_VERSION_NUMBER}`,
-    'name',
+  const intermediate_response = await get_paginated(
+    `${API_URL}bibles?key=${API_KEY}&v=${API_VERSION_NUMBER}&media=text_plain`, undefined, 50
   );
+  const data = await intermediate_response.clone().json();
 
-  await cache.put(req, res.clone());
-  return res;
-}, true);
-
-app.get('/api/bibles', async (req, params, query) => {
-  let language_code, media;
-  if (query.has('language_code')) {
-    language_code = '&language_code=' + query.get('language_code');
-  } else {
-    language_code = '';
-  }
-  if (query.has('media')) {
-    media = '&media=' + query.get('media');
-  } else {
-    media = '';
-  }
-  let could_cache = false
-  const cache = await caches.open('data-cache');
-  if (!query.has('language_code') && !query.has('media')) {
-    could_cache = true;
-    const cached = await cache.match(req);
-    if (cached) {
-      return cached
-    }
-  }
-
-  const res = await get_paginated(
-    `${API_URL}bibles?key=${API_KEY}&v=${API_VERSION_NUMBER}${language_code}${media}`, undefined, 50
-  );
-  if (could_cache) {
-    await cache.put(req, res.clone());
-  }
-  return res;
-}, true);
+  const sortedCompleteBibles = collectCompleteBibles(data);
+  const responseBody = JSON.stringify(sortedCompleteBibles);
+  
+  const res = new Response(responseBody, {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  await cache.put(req, res)
+  return res
+});
 
 app.get('/api/defaultbible', async (req, params, query) => {
   const language = query.get('language_code');

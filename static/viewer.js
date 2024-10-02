@@ -1,5 +1,5 @@
 async function populateDropdowns() {
-    const response = await fetch("/api/languages");
+    const response = await fetch("/api/bibles");
     const data = await response.json();
 
     const language_select = document.getElementById("language-select");

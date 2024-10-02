@@ -1,5 +1,7 @@
 .vscode
 .env
 bibles.json
+bibles_text.json
 *.py
 *.ipynb
+
