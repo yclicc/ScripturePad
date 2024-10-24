@@ -473,7 +473,7 @@ app.get('/api/completebibles', async (req) => {
     status: 200,
     headers: { 'content-type': 'application/json' },
   });
-  await cache.put(req, res)
+  await cache.put(req, res.clone())
   return res
 });
 
