@@ -127,7 +127,7 @@ export const pastePage = ({ id = '', html = '', title = '' } = {}) => layout(tit
       <a class="btn" href="/${id}/edit">edit</a>
       <a class="btn" href="/${id}/delete">delete</a>
     </div>
-    <script src="/viewer.js"></script>
+    <script type="module" src="/viewer.js"></script>
   </main>
 `);
 

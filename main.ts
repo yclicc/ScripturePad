@@ -1,6 +1,4 @@
 import xss from 'xss';
-// Will be needed to translate from 3 character iso code (used by dbt) to a two character one used by machine translators (and back)
-import langs from 'langs-es';
 import { Marked } from 'marked';
 import { load } from 'std/dotenv/mod.ts';
 import { resolve } from 'std/path/mod.ts';

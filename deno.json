@@ -9,8 +9,7 @@
     "std/": "https://deno.land/std@0.202.0/",
     "lz": "https://esm.sh/v135/lz-string@1.5.0",
     "marked": "https://esm.sh/v135/marked@9.0.3",
-    "xss": "https://esm.sh/v135/xss@1.0.14",
-    "langs-es": "https://esm.sh/v135/langs-es@4.0.2"
+    "xss": "https://esm.sh/v135/xss@1.0.14"
   },
   "lint": {
     "include": [
