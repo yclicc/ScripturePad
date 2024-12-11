@@ -2,15 +2,28 @@
 // the two character machine translation one (and back)
 import langs from 'https://cdn.jsdelivr.net/npm/langs-es@4.0.2/+esm'
 
-function langDBTtoMT(code) {
-    return langs.where("3", code)["1"];
-}
-
-function langMTtoDBT(code) {
-    return langs.where("1", code)["3"];
+function langMTtoDBT(inCode) {
+    // TODO Add other hacks for different edge languages
+    if (inCode == "zh-CN") {
+        // If simplified, assume Mandarin
+        return "cmn";
+    } else if (inCode == "zh-TW") {
+        // If traditional, assume "Cantonese"
+        return "yue";
+    } else if (inCode == "fa") {
+        // If Farsi, assume "Western Persian"
+        return "pes"
+    }
+    var outCode = langs.where("1", inCode)["3"];
+    if (outCode == "ara") {
+        outCode = "arb";
+    }
+    return outCode;
 }
 
 function getPageLanguage(spec = "MT") {
+    // Spec stores whether we want a 2 letter machine translation code "MT"
+    // or a 3 letter code of the kind used by DBT, "DBT"
     var lang = document.documentElement.lang;
     if (spec == "MT") {
         return lang;
@@ -21,27 +34,60 @@ function getPageLanguage(spec = "MT") {
     }
 }
 
-async function populateDropdowns() {
+// The language the page is currently known to be in. Should always be English to start.
+var currentLanguage = document.documentElement.lang;
+
+var completeBibleData;
+const languageSelect = document.getElementById("language-select");
+const versionSelect = document.getElementById("version-select");
+
+async function populateLanguageDropdown() {
+    // Populate the language select with languages for which we have a
+    // complete Bible, then set the default to the current page language
     const response = await fetch("/api/completebibles");
-    const data = await response.json();
+    completeBibleData = await response.json();
 
-    const language_select = document.getElementById("language-select");
-    for (var language_name in data) {
+    for (var languageName in completeBibleData) {
         // Skip loop if the property is from prototype
-        if (!data.hasOwnProperty(language_name)) continue;
+        if (!completeBibleData.hasOwnProperty(languageName)) continue;
 
-        var language = data[language_name];
+        var language = completeBibleData[languageName];
         
         const opt = document.createElement('option');
         opt.value = language.iso;
-        if ((language.autonym !== null) && (language.autonym !== language_name) ) {
-            opt.textContent = `${language.autonym} (${language_name})`;
+        if ((language.autonym !== null) && (language.autonym !== languageName) ) {
+            opt.textContent = `${language.autonym} (${languageName})`;
         } else {
-            opt.textContent = `${language_name}`;
+            opt.textContent = `${languageName}`;
         }
-        language_select.appendChild(opt);
+        languageSelect.appendChild(opt);
     }
-    language_select.value = getPageLanguage("DBT");
+    languageSelect.value = getPageLanguage("DBT");
 }
 
-document.addEventListener('DOMContentLoaded', populateDropdowns);
+function onLanguageChange() {
+    // When we detect a change to the page language or on load, do this
+    languageSelect.value = getPageLanguage("DBT")
+    onLanguageSelect();
+}
+
+function onLanguageSelect() {
+    // Populate the versionSelect dropdown (TODO)
+}
+
+document.addEventListener('DOMContentLoaded', populateLanguageDropdown);
+
+// See https://martijnhols.nl/gists/how-to-detect-google-translate-and-other-machine-translation
+const languageObserver = new MutationObserver(() => {
+    const lang = document.documentElement.lang;
+    if (lang !== currentLanguage) {
+        currentLanguage = lang;
+        onLanguageChange();
+    }
+});
+languageObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['lang'],
+    childList: false,
+    characterData: false
+});
