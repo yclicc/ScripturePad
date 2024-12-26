@@ -454,10 +454,20 @@ app.get("/api/completebibles", async (req) => {
     return cached;
   }
 
-  const intermediate_response = await get_paginated(
-    `${API_URL}bibles?key=${API_KEY}&v=${API_VERSION_NUMBER}&media=text_plain`, undefined, 50
-  );
-  const data = await intermediate_response.clone().json();
+  var responseBody;
+  if (true) {
+    responseBody = await Deno.readFile("./completebibles.json");
+  } else {
+    const intermediate_response = await get_paginated(
+      `${API_URL}bibles?key=${API_KEY}&v=${API_VERSION_NUMBER}&media=text_plain`,
+      undefined,
+      50,
+    );
+    const data = await intermediate_response.clone().json();
+
+    const sortedCompleteBibles = collectCompleteBibles(data);
+    responseBody = JSON.stringify(sortedCompleteBibles);
+  }
 
   const res = new Response(responseBody, {
     status: 200,
