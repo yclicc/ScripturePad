@@ -1,17 +1,18 @@
-# mdbin guide
+# ScripturePad Guide
 
-`mdbin` is a [Markdown](https://en.wikipedia.org/wiki/Markdown) pastebin. It is heavily inspired by [rentry.co](https://rentry.co), but is [free and open-source](https://github.com/kevinfiol/mdbin), and easily self-hostable.
+ScripturePad is a [Markdown](https://en.wikipedia.org/wiki/Markdown) pastebin specifically designed for translatable sermon notes with Bible reference integration. It is built on [mdbin](https://github.com/kevinfiol/mdbin), but with added features for ministry use.
 
-`mdbin` uses [marked.js](https://marked.js.org/#specifications) for Markdown parsing, and thus supports all features of marked.js.
+ScripturePad uses [marked.js](https://marked.js.org/#specifications) for Markdown parsing, and extends it with features for Bible references and translation support.
 
 The following guide has been adapted with modifications from [learnxinyminutes](https://learnxinyminutes.com/docs/markdown/).
 
 <div class="toc">
    <ul>
-      <li><a href="#mdbin-guide">mdbin guide</a></li>
+      <li><a href="#scripturepad-guide">ScripturePad Guide</a></li>
       <ul>
         <li><a href="#custom-urls">Custom URLs</a></li>
         <li><a href="#edit-codes">Edit Codes</a></li>
+        <li><a href="#untranslatable-content">Untranslatable Content</a></li>
         <li><a href="#html-elements">HTML Elements</a></li>
         <li><a href="#headings">Headings</a></li>
         <li><a href="#simple-text-styles">Simple text styles</a></li>
@@ -42,9 +43,31 @@ You may optionally protect your paste from edits and deletion using a custom edi
 
 If a custom edit code is not provided, anyone can edit or delete your paste.
 
+## Untranslatable Content
+
+When creating multilingual content, you may want to prevent certain words or phrases from being translated when users view the page through automatic translation. ScripturePad provides a simple syntax for this:
+
+```md
+This is normal text that will be translated.
+
+But =proper names= like =John Smith= or =Jerusalem= will be protected from translation.
+
+Greek words like =agape= or =logos= will remain untranslated.
+
+Scripture references like =John 3:16= or =Romans 8:28= will stay as is.
+```
+
+Simply wrap any text you want to protect from translation in equals signs (`=`). This will add a special `translate="no"` attribute to the HTML, which is respected by most automatic translation tools like Google Translate.
+
+This is particularly useful for:
+- Scripture references (=Matthew 5:1-12=)
+- Names of people and places (=Peter=, =Capernaum=)
+- Original language terms (=koinonia=, =shalom=)
+- Technical theological terms (=justification=, =sanctification=)
+
 ## HTML Elements
 
-Markdown is a superset of HTML, so any HTML file is valid Markdown. `mdbin` automatically sanitizes untrusted HTML.
+Markdown is a superset of HTML, so any HTML file is valid Markdown. ScripturePad automatically sanitizes untrusted HTML.
 
 ```md
 <!--This means we can use HTML elements in Markdown, such as the comment

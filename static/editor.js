@@ -1,25 +1,25 @@
 (({ marked }) => {
   const MAX_LENGTH = 40000;
-  const cmEl = document.getElementById('editor');
-  const textArea = document.getElementById('pasteTextArea');
-  const editorTab = document.getElementById('tab1');
-  const editorForm = document.getElementById('editor-form');
-  const previewTab = document.getElementById('tab2');
-  const previewContainer = document.getElementById('preview-container');
-  const characterCount = document.getElementById('characterCount');
+  const cmEl = document.getElementById("editor");
+  const textArea = document.getElementById("pasteTextArea");
+  const editorTab = document.getElementById("tab1");
+  const editorForm = document.getElementById("editor-form");
+  const previewTab = document.getElementById("tab2");
+  const previewContainer = document.getElementById("preview-container");
+  const characterCount = document.getElementById("characterCount");
 
   // onload, reset to editorTab since we can't be sure preview tab will be populated
   editorTab.click();
 
   // hide paste textarea
-  textArea.style.display = 'none';
+  textArea.style.display = "none";
 
   const editor = new CodeMirror(cmEl, {
-    mode: 'markdown',
+    mode: "markdown",
     value: textArea.value,
-    keymap: 'sublime',
-    theme: 'default',
-    viewportMargin: Infinity
+    keymap: "sublime",
+    theme: "default",
+    viewportMargin: Infinity,
   });
 
   // attach editor to window
@@ -50,7 +50,9 @@
     if (change.update) {
       const newLine = instance.getDoc().lineSeparator();
       let text = change.text.join(newLine);
-      let delta = text.length - (instance.indexFromPos(change.to) - instance.indexFromPos(change.from));
+      let delta =
+        text.length -
+        (instance.indexFromPos(change.to) - instance.indexFromPos(change.from));
       if (delta <= 0) return true;
 
       delta = instance.getValue().length + delta - MAX_LENGTH;
@@ -63,16 +65,16 @@
     return true;
   };
 
-  editor.on('change', onChange);
-  editor.on('beforeChange', onBeforeChange);
+  editor.on("change", onChange);
+  editor.on("beforeChange", onBeforeChange);
 
   // set event listener to refresh editor on tab select
-  editorTab.addEventListener('click', () => {
+  editorTab.addEventListener("click", () => {
     editor.refresh();
   });
 
   // override form submit
-  editorForm.addEventListener('submit', (ev) => {
+  editorForm.addEventListener("submit", (ev) => {
     ev.preventDefault();
 
     // set textarea to ensure it is up to date

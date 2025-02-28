@@ -46,6 +46,7 @@ const XSS_OPTIONS = {
     h5: ["id"],
     h6: ["id"],
     input: ["disabled", "type", "checked"],
+    span: ["translate"],
   },
 };
 
