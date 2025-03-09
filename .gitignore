@@ -2,6 +2,6 @@
 .env
 bibles.json
 bibles_text.json
+completebibles.json
 *.py
 *.ipynb
-

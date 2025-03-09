@@ -503,6 +503,46 @@ app.get(
   true,
 );
 
+app.get(
+  "/api/bibletext/:fileset_id/:book/:chapter",
+  async (req, params, query) => {
+    const fileset_id = params.fileset_id as string;
+    const book = params.book as string;
+    const chapter = params.chapter as string;
+    const verse_start = query.get("verse_start");
+    const verse_end = query.get("verse_end");
+    
+    // Construct the DBT API URL
+    let url = `${API_URL}bibles/filesets/${fileset_id}/${book}/${chapter}?key=${API_KEY}&v=${API_VERSION_NUMBER}`;
+    
+    // Add optional verse parameters if they exist
+    if (verse_start) {
+      url += `&verse_start=${verse_start}`;
+      
+      // If no end verse specified but start verse is specified, use start verse as end verse too
+      // This ensures we only get the single verse when only one is requested
+      if (!verse_end) {
+        url += `&verse_end=${verse_start}`;
+      } else {
+        url += `&verse_end=${verse_end}`;
+      }
+    }
+    
+    console.log(`Fetching scripture from: ${url}`);
+    
+    const externalResponse = await fetch(url, {
+      method: "GET",
+    });
+
+    const responseBody = await externalResponse.text();
+    return new Response(responseBody, {
+      status: externalResponse.status,
+      headers: { "content-type": "application/json" },
+    });
+  },
+  true,
+);
+
 Deno.serve({ port: Number(SERVER_PORT) }, app.handler.bind(app));
 
 function createParser() {

@@ -437,3 +437,34 @@ textarea,
 }
 .dark-mode-btn { opacity: 0.2; user-select: none; }
 .dark-mode-btn:hover { opacity: 0.5; }
+
+/* Scripture reference styling */
+.scripture-text {
+    margin: var(--spacing-2) 0;
+    padding: var(--spacing-2);
+    border-left: 3px solid var(--color-accent);
+    background-color: var(--color-bg-secondary);
+    border-radius: 4px;
+    font-style: italic;
+}
+
+.scripture-text sup {
+    font-weight: bold;
+    color: var(--color-accent);
+    margin-right: 2px;
+}
+
+.dropdown-selectors {
+    display: flex;
+    gap: var(--spacing-2);
+    margin-bottom: var(--spacing-3);
+    align-items: center;
+}
+
+.dropdown-selectors select {
+    padding: var(--spacing-1);
+    border-radius: 4px;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-bg);
+    color: var(--color-text);
+}
