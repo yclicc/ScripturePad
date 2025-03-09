@@ -1,4 +1,4 @@
-import { noTranslateExtension } from "./utils.js";
+import { scriptureReftagExtension, noTranslateExtension } from "./utils.js";
 
 (({ marked }) => {
   const MAX_LENGTH = 40000;
@@ -86,7 +86,7 @@ import { noTranslateExtension } from "./utils.js";
   });
 
   // Register the extension with marked.
-  marked.use({ extensions: [noTranslateExtension] });
+  marked.use({ extensions: [scriptureReftagExtension, noTranslateExtension] });
 
   // populate preview tab when activating it
   previewTab.addEventListener("change", () => {

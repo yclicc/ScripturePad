@@ -13,7 +13,10 @@ import {
   homePage,
   pastePage,
 } from "./templates.ts";
-import { noTranslateExtension } from "./static/utils.js"
+import {
+  scriptureReftagExtension,
+  noTranslateExtension,
+} from "./static/utils.js";
 
 interface TocItem {
   level: number;
@@ -48,6 +51,7 @@ const XSS_OPTIONS = {
     h6: ["id"],
     input: ["disabled", "type", "checked"],
     span: ["translate"],
+    "x-bibleref": ["data-book", "data-chapter", "data-start-verse", "data-end-verse"],
   },
 };
 
@@ -515,7 +519,7 @@ function createParser() {
   };
 
   const marked = new Marked({ renderer, breaks: true });
-  marked.use({ extensions: [noTranslateExtension] });
+  marked.use({ extensions: [scriptureReftagExtension, noTranslateExtension] });
   const parse = (markdown: string, { toc = true } = {}) => {
     let html = marked.parse(markdown) as string;
     const title = tocItems[0] ? tocItems[0].text : "";
