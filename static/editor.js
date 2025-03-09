@@ -93,6 +93,12 @@ import { scriptureReftagExtension, noTranslateExtension } from "./utils.js";
     previewContainer.innerHTML = marked.parse(editor.getValue(), {
       breaks: true,
     });
+
+    // Add <SCRIPTURE_REFERENCE> to all x-bibleref tags in preview
+    const bibleTags = previewContainer.getElementsByTagName("x-bibleref");
+    for (let tag of bibleTags) {
+      tag.textContent = " <SCRIPTURE_REFERENCE>";
+    }
   });
 
   function debounce(cb, wait) {
