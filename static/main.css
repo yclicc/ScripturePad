@@ -480,6 +480,61 @@ textarea,
     margin-bottom: var(--spacing-2);
 }
 
+/* Error Notification */
+.error-notification {
+    position: fixed;
+    top: var(--spacing-4);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background-color: var(--error-color);
+    color: white;
+    padding: var(--spacing-3);
+    border-radius: 4px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    max-width: 90%;
+    width: auto;
+    animation: errorFadeIn 0.3s ease-in-out, errorShake 0.5s cubic-bezier(.36,.07,.19,.97) 0.3s, errorFadeOut 0.5s ease-in-out 6s forwards;
+}
+
+.error-content {
+    font-weight: 500;
+}
+
+@keyframes errorFadeIn {
+    from { opacity: 0; transform: translate(-50%, -20px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes errorShake {
+    0% { transform: translate(-50%, 0); }
+    20% { transform: translate(calc(-50% - 5px), 0); }
+    40% { transform: translate(calc(-50% + 5px), 0); }
+    60% { transform: translate(calc(-50% - 3px), 0); }
+    80% { transform: translate(calc(-50% + 3px), 0); }
+    100% { transform: translate(-50%, 0); }
+}
+
+@keyframes errorFadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; visibility: hidden; }
+}
+
+/* Field-level errors */
+small.error {
+    color: var(--error-color);
+    display: block;
+    margin-top: var(--spacing-1);
+    font-weight: bold;
+}
+
+/* Input error styling */
+input[aria-invalid="true"] {
+    border-color: var(--error-color);
+    border-width: 2px;
+    box-shadow: 0 0 0 1px var(--error-color);
+}
+
 /* Antioch Network footer */
 .antioch-footer {
     margin-top: var(--spacing-4);

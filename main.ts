@@ -32,6 +32,15 @@ const API_KEY = Deno.env.get("API_KEY");
 const API_URL = "https://4.dbt.io/api/";
 const API_VERSION_NUMBER = 4;
 const STATIC_ROOT = resolve("./static");
+
+// Get allowed edit codes from environment
+const ALLOWED_EDIT_CODES_STR = Deno.env.get("ALLOWED_EDIT_CODES") ?? "";
+const ALLOWED_EDIT_CODES = ALLOWED_EDIT_CODES_STR.split(",").map(code => code.trim());
+
+// Function to check if an edit code is in the allowed list
+function isAllowedEditCode(editCode: string): boolean {
+  return ALLOWED_EDIT_CODES.includes(editCode);
+}
 const FILES = new Map<string, string>();
 const MIMES: Record<string, string> = {
   js: "text/javascript",
@@ -216,6 +225,22 @@ app.post("/save", async (req) => {
   if (typeof editCode === "string") {
     editCode = editCode.trim() || undefined;
   }
+  
+  // Check if the edit code is in the allowed list
+  if (!editCode || !isAllowedEditCode(editCode)) {
+    status = 422;
+    
+    contents = homePage({
+      paste,
+      url: customUrl,
+      errors: { editCode: "Invalid edit code. You must provide an authorized edit code to create content." },
+    });
+    
+    return new Response(contents, {
+      status,
+      headers,
+    });
+  }
 
   if (slug.length > 0) {
     const res = await storage.get(slug);
@@ -276,16 +301,28 @@ app.post("/:id/save", async (req, params) => {
     const existing = res.value as Paste;
     const hasEditCode = Boolean(existing.editCode);
 
-    if (hasEditCode && existing.editCode !== editCode) {
-      // editCode mismatch
+    // First check if edit code is in the allowed list for new edits
+    if (!editCode || !isAllowedEditCode(editCode)) {
       status = 400;
       contents = editPage({
         id,
         paste,
         hasEditCode,
-        errors: { editCode: "invalid edit code" },
+        errors: { editCode: "Invalid edit code. You must provide an authorized edit code to edit content." },
+      });
+    } 
+    // Then check if it matches the original edit code (if there was one)
+    else if (hasEditCode && existing.editCode !== editCode) {
+      // editCode mismatch with the original
+      status = 400;
+      contents = editPage({
+        id,
+        paste,
+        hasEditCode,
+        errors: { editCode: "Invalid edit code. This doesn't match the code used to create this content." },
       });
     } else {
+      // Edit code is valid and matches (if required)
       await storage.set(id, { ...existing, paste });
       headers.set("location", "/" + id);
     }
@@ -318,15 +355,26 @@ app.post("/:id/delete", async (req, params) => {
     const existing = res.value as Paste;
     const hasEditCode = Boolean(existing.editCode);
 
-    if (hasEditCode && existing.editCode !== editCode) {
-      // editCode mismatch
+    // First check if edit code is in the allowed list
+    if (!editCode || !isAllowedEditCode(editCode)) {
       status = 400;
       contents = deletePage({
         id,
         hasEditCode,
-        errors: { editCode: "invalid edit code" },
+        errors: { editCode: "Invalid edit code. You must provide an authorized edit code to delete content." },
+      });
+    }
+    // Then check if it matches the original edit code (if there was one)
+    else if (hasEditCode && existing.editCode !== editCode) {
+      // editCode mismatch with the original
+      status = 400;
+      contents = deletePage({
+        id,
+        hasEditCode,
+        errors: { editCode: "Invalid edit code. This doesn't match the code used to create this content." },
       });
     } else {
+      // Edit code is valid and matches (if required)
       await storage.delete(id);
       headers.set("location", "/");
     }

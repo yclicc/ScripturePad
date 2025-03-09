@@ -2,6 +2,15 @@ const _if = (condition: unknown, template: string) => (
   condition ? template : ''
 );
 
+// Error notification component for more visible errors
+const ErrorNotification = (error: string) => error ? `
+  <div class="error-notification">
+    <div class="error-content">
+      <strong>Error:</strong> ${error}
+    </div>
+  </div>
+` : '';
+
 const Tabs = () => `
   <input type="radio" name="tabs" id="tab1" class="tab-input" checked />
   <label class="tab" for="tab1">editor</label>
@@ -71,9 +80,10 @@ const layout = (title: string, content: string) => `
 export const homePage = ({
   paste = '',
   url = '',
-  errors = { url: '' },
+  errors = { url: '', editCode: '' },
 } = {}) => layout('ScripturePad', `
   <main>
+    ${ErrorNotification(errors.editCode || errors.url)}
     ${Tabs()}
 
     <form id="editor-form" method="post" action="/save">
@@ -100,10 +110,16 @@ export const homePage = ({
           <input
             name="editcode"
             type="text"
-            placeholder="edit code (optional)"
+            placeholder="edit code (required)"
             minlength="3"
             maxlength="40"
+            required
+            aria-invalid="${Boolean(errors.editCode)}"
+            ${_if(errors.editCode, 'aria-describedby="editcode-error"')}
           />
+          ${_if(errors.editCode, `
+            <small class="error" id="editcode-error">${errors.editCode}</small>
+          `)}
         </div>
       </div>
 
@@ -158,6 +174,7 @@ export const editPage = (
   { id = '', paste = '', hasEditCode = false, errors = { editCode: '' } } = {},
 ) => layout(`edit ${id}`, `
   <main>
+    ${ErrorNotification(errors.editCode)}
     ${Tabs()}
 
     <form id="editor-form" method="post" action="/${id}/save">
@@ -204,6 +221,7 @@ export const deletePage = (
   { id = '', hasEditCode = false, errors = { editCode: '' } } = {}
 ) => layout(`delete ${id}`, `
   <main>
+    ${ErrorNotification(errors.editCode)}
     <div>
       <em>are you sure you want to delete this paste?</em>
       <strong>${id}</strong>
