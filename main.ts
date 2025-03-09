@@ -509,7 +509,7 @@ app.get("/api/completebibles", async (req) => {
   }
 
   var responseBody;
-  if (true) {
+  if (false) {
     responseBody = await Deno.readFile("./completebibles.json");
   } else {
     const intermediate_response = await get_paginated(
