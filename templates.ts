@@ -48,6 +48,20 @@ const layout = (title: string, content: string) => `
         <a href="/guide">guide</a>
         <a href="https://github.com/yclicc/ScripturePad">source</a>
       </div>
+      <div class="antioch-footer">
+        <div class="antioch-attribution">
+          Originally created for Antioch Network Manchester
+        </div>
+        <div class="antioch-logo-container">
+          <a href="https://www.antiochnetwork.org.uk" target="_blank" rel="noopener noreferrer">
+            <img 
+              src="https://www.antiochnetwork.org.uk/images/elements/xfooter_logo.png,ql=20270704.11.pagespeed.ic.456AOnF_xg.png" 
+              alt="Antioch Network Manchester Logo" 
+              class="antioch-logo"
+            />
+          </a>
+        </div>
+      </div>
     </footer>
     <script src="/theme-switch.js"></script>
   </body>
