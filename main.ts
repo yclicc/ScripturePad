@@ -543,6 +543,43 @@ app.get(
   true,
 );
 
+app.get(
+  "/api/copyright/:bible_id",
+  async (req, params, query) => {
+    const bible_id = params.bible_id as string;
+    const iso = query.get("iso") || "eng";  // Default to English if no language specified
+    
+    // Construct the DBT API URL for copyright information
+    // The DBT API expects only the bible_id parameter
+    const url = `${API_URL}bibles/${bible_id}/copyright?key=${API_KEY}&v=${API_VERSION_NUMBER}&iso=${iso}`;
+    
+    console.log(`Fetching copyright from: ${url}`);
+    
+    try {
+      const externalResponse = await fetch(url, {
+        method: "GET",
+      });
+
+      // Log the response for debugging
+      const responseText = await externalResponse.text();
+      console.log(`Copyright API response for ${bible_id}: ${responseText}`);
+      
+      // Create a new response with the same content
+      return new Response(responseText, {
+        status: externalResponse.status,
+        headers: { "content-type": "application/json" },
+      });
+    } catch (error) {
+      console.error(`Error fetching copyright: ${error.message}`);
+      return new Response(JSON.stringify({ error: "Failed to fetch copyright information" }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      });
+    }
+  },
+  true,
+);
+
 Deno.serve({ port: Number(SERVER_PORT) }, app.handler.bind(app));
 
 function createParser() {

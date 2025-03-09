@@ -41,6 +41,8 @@ var currentLanguage = document.documentElement.lang;
 var completeBibleData;
 const languageSelect = document.getElementById("language-select");
 const versionSelect = document.getElementById("version-select");
+// Track copyright information
+let currentCopyrightInfo = null;
 
 async function populateLanguageDropdown() {
   // Populate the language select with languages for which we have a
@@ -112,7 +114,7 @@ async function onLanguageSelect() {
     // If there are versions available, select the first one
     if (versionSelect.options.length > 0) {
       versionSelect.selectedIndex = 0;
-      
+
       // Process Bible references after selecting a version
       processBibleReferences(selectedLanguage);
     }
@@ -132,21 +134,31 @@ async function processBibleReferences(selectedLanguage) {
   // Get all Bible reference elements
   const bibleRefs = document.querySelectorAll("x-bibleref");
   if (bibleRefs.length === 0) return;
-  
+
   // Get the selected Bible version
   const selectedVersion = versionSelect.value;
   if (!selectedVersion) return;
-  
+
   // Get the filesets for the selected version
   const bibles = completeBibleData[selectedLanguage].bibles;
   const filesets = bibles[selectedVersion]["dbp-prod"];
-  
+
   // Find text filesets for OT and NT
   let otFilesetId = null;
   let ntFilesetId = null;
-  
+  let bibleId = null;
+
   // Find appropriate filesets for OT and NT
   for (const fileset of filesets) {
+    // Store the Bible ID if available
+    if (fileset.id && !bibleId) {
+      // The Bible ID is typically the first 6 characters of the fileset ID
+      bibleId = fileset.id.substring(0, 6);
+      console.log(
+        `Extracted Bible ID: ${bibleId} from fileset ID: ${fileset.id}`,
+      );
+    }
+
     if (["text_format", "text_plain"].includes(fileset.type)) {
       if (fileset.size === "C") {
         // Complete Bible
@@ -160,35 +172,49 @@ async function processBibleReferences(selectedLanguage) {
       }
     }
   }
-  
+
+  // Fetch copyright information if we have a Bible ID
+  if (bibleId) {
+    // Get the language ISO code
+    const languageIso = languageSelect.value;
+
+    // Fetch copyright information
+    fetchCopyrightInfo(bibleId, languageIso);
+  } else {
+    // No Bible ID, so remove any existing copyright info
+    removeCopyrightInfo();
+  }
+
   // Cache the filesets for this version
   selectedFilesetsCache[selectedVersion] = {
     otFilesetId,
-    ntFilesetId
+    ntFilesetId,
   };
-  
+
   // Process each Bible reference
   for (const ref of bibleRefs) {
     const book = ref.getAttribute("data-book");
     const chapter = ref.getAttribute("data-chapter");
     const startVerse = ref.getAttribute("data-start-verse");
     const endVerse = ref.getAttribute("data-end-verse");
-    
+
     // Determine if OT or NT
     const testament = testamentLookup[book] || "OT";
-    
+
     // Select the appropriate fileset based on testament
     const filesetId = testament === "OT" ? otFilesetId : ntFilesetId;
-    
+
     if (!filesetId) {
-      console.warn(`No fileset available for ${testament} in this Bible version`);
+      console.warn(
+        `No fileset available for ${testament} in this Bible version`,
+      );
       continue;
     }
-    
+
     try {
       // Construct the API URL
       let apiUrl = `/api/bibletext/${filesetId}/${book}/${chapter}`;
-      
+
       // Add verse parameters if specified
       if (startVerse) {
         apiUrl += `?verse_start=${startVerse}`;
@@ -198,32 +224,35 @@ async function processBibleReferences(selectedLanguage) {
           apiUrl += `&verse_end=${endVerse}`;
         }
       }
-      
+
       // Fetch the scripture text
       const response = await fetch(apiUrl);
       const data = await response.json();
-      
+
       if (data && data.data) {
         // Create a container for the scripture text
         const scriptureContainer = document.createElement("div");
         scriptureContainer.classList.add("scripture-text");
-        
+
         // Set translate="no" to prevent Google Translate from modifying scripture text
         scriptureContainer.setAttribute("translate", "no");
-        
+
         // Add the verses
         let verseText = "";
         for (const verse of data.data) {
           verseText += `<sup>${verse.verse_start}</sup> ${verse.verse_text} `;
         }
-        
+
         scriptureContainer.innerHTML = verseText;
-        
+
         // Add the scripture container after the reference
-        if (ref.nextElementSibling && ref.nextElementSibling.classList.contains("scripture-text")) {
+        if (
+          ref.nextElementSibling &&
+          ref.nextElementSibling.classList.contains("scripture-text")
+        ) {
           // Replace existing scripture container if it exists
           ref.nextElementSibling.innerHTML = scriptureContainer.innerHTML;
-          
+
           // Ensure translate="no" is set on the existing container too
           ref.nextElementSibling.setAttribute("translate", "no");
         } else {
@@ -232,25 +261,111 @@ async function processBibleReferences(selectedLanguage) {
         }
       }
     } catch (error) {
-      console.error(`Error fetching scripture for ${book} ${chapter}:${startVerse || 1}-${endVerse || startVerse || chapter}`, error);
+      console.error(
+        `Error fetching scripture for ${book} ${chapter}:${startVerse || 1}-${endVerse || startVerse || chapter}`,
+        error,
+      );
     }
   }
+}
+
+// Function to fetch copyright information from the API
+async function fetchCopyrightInfo(bibleId, languageIso) {
+  try {
+    // Construct the API URL
+    const apiUrl = `/api/copyright/${bibleId}?iso=${languageIso}`;
+
+    // Fetch the copyright information
+    const response = await fetch(apiUrl);
+    const data = await response.json();
+
+    // Check if we have copyright data and it's an array
+    if (data && Array.isArray(data)) {
+      // Search through the copyright items for a matching ID and text type
+      for (const item of data) {
+        // Check if this item has the right Bible ID and a text type
+        if (item.id === bibleId && item.type && item.type.startsWith("text")) {
+          // Found a matching copyright item
+          if (item.copyright) {
+            updateCopyrightInfo(item.copyright.copyright);
+            return;
+          }
+        }
+      }
+
+      // Look for any item with a copyright field
+      for (const item of data.data) {
+        if (item.copyright) {
+          updateCopyrightInfo(item.copyright);
+          return;
+        }
+      }
+    } else if (data && data.data && data.data.copyright) {
+      // Handle case where copyright is directly in data.data
+      updateCopyrightInfo(data.data.copyright);
+      return;
+    }
+
+    // If we reached here, there's no copyright info
+    removeCopyrightInfo();
+  } catch (error) {
+    console.error("Error fetching copyright information:", error);
+    removeCopyrightInfo();
+  }
+}
+
+// Function to add copyright information to the footer
+function updateCopyrightInfo(copyright) {
+  // If there's no copyright info or it's the same as what we already have, do nothing
+  if (!copyright || copyright === currentCopyrightInfo) {
+    return;
+  }
+
+  // Store the current copyright info
+  currentCopyrightInfo = copyright;
+
+  // Remove any existing copyright div
+  removeCopyrightInfo();
+
+  // Find the footer element
+  const footer = document.querySelector("footer");
+  if (!footer) return;
+
+  // Create copyright div with translate="no" to prevent translation
+  const copyrightDiv = document.createElement("div");
+  copyrightDiv.classList.add("scripture-copyright");
+  copyrightDiv.setAttribute("translate", "no"); // Prevent translation
+  copyrightDiv.innerHTML = copyright;
+
+  // Add it to the footer before the existing content
+  footer.insertBefore(copyrightDiv, footer.firstChild);
+}
+
+// Function to remove copyright information
+function removeCopyrightInfo() {
+  const existingCopyright = document.querySelector(".scripture-copyright");
+  if (existingCopyright) {
+    existingCopyright.remove();
+  }
+  currentCopyrightInfo = null;
 }
 
 // Initialize the dropdowns when the page loads
 document.addEventListener("DOMContentLoaded", function () {
   populateLanguageDropdown();
-  
+
   // Add event listener for language select changes
   languageSelect.addEventListener("change", onLanguageSelect);
-  
+
   // Add event listener for version select changes
-  versionSelect.addEventListener("change", function() {
+  versionSelect.addEventListener("change", function () {
     const selectedLanguage = Object.keys(completeBibleData).find(
-      langName => completeBibleData[langName].iso === languageSelect.value
+      (langName) => completeBibleData[langName].iso === languageSelect.value,
     );
-    
+
     if (selectedLanguage) {
+      // Clear previous copyright info when changing versions
+      removeCopyrightInfo();
       processBibleReferences(selectedLanguage);
     }
   });
