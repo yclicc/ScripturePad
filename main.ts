@@ -13,6 +13,7 @@ import {
   homePage,
   pastePage,
 } from "./templates.ts";
+import { noTranslateExtension } from "./static/utils.js"
 
 interface TocItem {
   level: number;
@@ -514,6 +515,7 @@ function createParser() {
   };
 
   const marked = new Marked({ renderer, breaks: true });
+  marked.use({ extensions: [noTranslateExtension] });
   const parse = (markdown: string, { toc = true } = {}) => {
     let html = marked.parse(markdown) as string;
     const title = tocItems[0] ? tocItems[0].text : "";

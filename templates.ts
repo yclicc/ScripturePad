@@ -104,7 +104,8 @@ export const homePage = ({
   <script src="/codemirror.min.js"></script>
   <script src="/cm-markdown.min.js"></script>
   <script src="/cm-sublime.min.js"></script>
-  <script src="/editor.js"></script>
+  <script src="/utils.js" type="module"></script>
+  <script src="/editor.js" type="module"></script>
 `);
 
 export const pastePage = ({ id = '', html = '', title = '' } = {}) => layout(title, `
@@ -181,7 +182,8 @@ export const editPage = (
   <script src="/codemirror.min.js"></script>
   <script src="/cm-markdown.min.js"></script>
   <script src="/cm-sublime.min.js"></script>
-  <script src="/editor.js"></script>
+  <script src="/utils.js" type="module"></script>
+  <script src="/editor.js" type="module"></script>
 `);
 
 export const deletePage = (

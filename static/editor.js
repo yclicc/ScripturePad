@@ -1,3 +1,5 @@
+import { noTranslateExtension } from "./utils.js";
+
 (({ marked }) => {
   const MAX_LENGTH = 40000;
   const cmEl = document.getElementById("editor");
@@ -83,9 +85,14 @@
     editorForm.submit();
   });
 
+  // Register the extension with marked.
+  marked.use({ extensions: [noTranslateExtension] });
+
   // populate preview tab when activating it
-  previewTab.addEventListener('change', () => {
-    previewContainer.innerHTML = marked.parse(editor.getValue(), { breaks: true });
+  previewTab.addEventListener("change", () => {
+    previewContainer.innerHTML = marked.parse(editor.getValue(), {
+      breaks: true,
+    });
   });
 
   function debounce(cb, wait) {
