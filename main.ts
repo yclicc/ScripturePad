@@ -35,7 +35,9 @@ const STATIC_ROOT = resolve("./static");
 
 // Get allowed edit codes from environment
 const ALLOWED_EDIT_CODES_STR = Deno.env.get("ALLOWED_EDIT_CODES") ?? "";
-const ALLOWED_EDIT_CODES = ALLOWED_EDIT_CODES_STR.split(",").map(code => code.trim());
+const ALLOWED_EDIT_CODES = ALLOWED_EDIT_CODES_STR.split(",").map((code) =>
+  code.trim(),
+);
 
 // Function to check if an edit code is in the allowed list
 function isAllowedEditCode(editCode: string): boolean {
@@ -60,7 +62,12 @@ const XSS_OPTIONS = {
     h6: ["id"],
     input: ["disabled", "type", "checked"],
     span: ["translate"],
-    "x-bibleref": ["data-book", "data-chapter", "data-start-verse", "data-end-verse"],
+    "x-bibleref": [
+      "data-book",
+      "data-chapter",
+      "data-start-verse",
+      "data-end-verse",
+    ],
   },
 };
 
@@ -225,17 +232,20 @@ app.post("/save", async (req) => {
   if (typeof editCode === "string") {
     editCode = editCode.trim() || undefined;
   }
-  
+
   // Check if the edit code is in the allowed list
   if (!editCode || !isAllowedEditCode(editCode)) {
     status = 422;
-    
+
     contents = homePage({
       paste,
       url: customUrl,
-      errors: { editCode: "Invalid edit code. You must provide an authorized edit code to create content." },
+      errors: {
+        editCode:
+          "Invalid edit code. You must provide an authorized edit code to create content.",
+      },
     });
-    
+
     return new Response(contents, {
       status,
       headers,
@@ -308,9 +318,12 @@ app.post("/:id/save", async (req, params) => {
         id,
         paste,
         hasEditCode,
-        errors: { editCode: "Invalid edit code. You must provide an authorized edit code to edit content." },
+        errors: {
+          editCode:
+            "Invalid edit code. You must provide an authorized edit code to edit content.",
+        },
       });
-    } 
+    }
     // Then check if it matches the original edit code (if there was one)
     else if (hasEditCode && existing.editCode !== editCode) {
       // editCode mismatch with the original
@@ -319,7 +332,10 @@ app.post("/:id/save", async (req, params) => {
         id,
         paste,
         hasEditCode,
-        errors: { editCode: "Invalid edit code. This doesn't match the code used to create this content." },
+        errors: {
+          editCode:
+            "Invalid edit code. This doesn't match the code used to create this content.",
+        },
       });
     } else {
       // Edit code is valid and matches (if required)
@@ -361,7 +377,10 @@ app.post("/:id/delete", async (req, params) => {
       contents = deletePage({
         id,
         hasEditCode,
-        errors: { editCode: "Invalid edit code. You must provide an authorized edit code to delete content." },
+        errors: {
+          editCode:
+            "Invalid edit code. You must provide an authorized edit code to delete content.",
+        },
       });
     }
     // Then check if it matches the original edit code (if there was one)
@@ -371,7 +390,10 @@ app.post("/:id/delete", async (req, params) => {
       contents = deletePage({
         id,
         hasEditCode,
-        errors: { editCode: "Invalid edit code. This doesn't match the code used to create this content." },
+        errors: {
+          editCode:
+            "Invalid edit code. This doesn't match the code used to create this content.",
+        },
       });
     } else {
       // Edit code is valid and matches (if required)
@@ -559,14 +581,14 @@ app.get(
     const chapter = params.chapter as string;
     const verse_start = query.get("verse_start");
     const verse_end = query.get("verse_end");
-    
+
     // Construct the DBT API URL
     let url = `${API_URL}bibles/filesets/${fileset_id}/${book}/${chapter}?key=${API_KEY}&v=${API_VERSION_NUMBER}`;
-    
+
     // Add optional verse parameters if they exist
     if (verse_start) {
       url += `&verse_start=${verse_start}`;
-      
+
       // If no end verse specified but start verse is specified, use start verse as end verse too
       // This ensures we only get the single verse when only one is requested
       if (!verse_end) {
@@ -575,9 +597,9 @@ app.get(
         url += `&verse_end=${verse_end}`;
       }
     }
-    
+
     console.log(`Fetching scripture from: ${url}`);
-    
+
     const externalResponse = await fetch(url, {
       method: "GET",
     });
@@ -595,14 +617,14 @@ app.get(
   "/api/copyright/:bible_id",
   async (req, params, query) => {
     const bible_id = params.bible_id as string;
-    const iso = query.get("iso") || "eng";  // Default to English if no language specified
-    
+    const iso = query.get("iso") || "eng"; // Default to English if no language specified
+
     // Construct the DBT API URL for copyright information
     // The DBT API expects only the bible_id parameter
     const url = `${API_URL}bibles/${bible_id}/copyright?key=${API_KEY}&v=${API_VERSION_NUMBER}&iso=${iso}`;
-    
+
     console.log(`Fetching copyright from: ${url}`);
-    
+
     try {
       const externalResponse = await fetch(url, {
         method: "GET",
@@ -611,7 +633,7 @@ app.get(
       // Log the response for debugging
       const responseText = await externalResponse.text();
       console.log(`Copyright API response for ${bible_id}: ${responseText}`);
-      
+
       // Create a new response with the same content
       return new Response(responseText, {
         status: externalResponse.status,
@@ -619,10 +641,13 @@ app.get(
       });
     } catch (error) {
       console.error(`Error fetching copyright: ${error.message}`);
-      return new Response(JSON.stringify({ error: "Failed to fetch copyright information" }), {
-        status: 500,
-        headers: { "content-type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Failed to fetch copyright information" }),
+        {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        },
+      );
     }
   },
   true,

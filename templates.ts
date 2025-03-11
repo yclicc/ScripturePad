@@ -1,15 +1,17 @@
-const _if = (condition: unknown, template: string) => (
-  condition ? template : ''
-);
+const _if = (condition: unknown, template: string) =>
+  condition ? template : "";
 
 // Error notification component for more visible errors
-const ErrorNotification = (error: string) => error ? `
+const ErrorNotification = (error: string) =>
+  error
+    ? `
   <div class="error-notification">
     <div class="error-content">
       <strong>Error:</strong> ${error}
     </div>
   </div>
-` : '';
+`
+    : "";
 
 const Tabs = () => `
   <input type="radio" name="tabs" id="tab1" class="tab-input" checked />
@@ -19,7 +21,7 @@ const Tabs = () => `
   <small id="characterCount"></small>
 `;
 
-const Editor = (paste = '') => `
+const Editor = (paste = "") => `
   <div id="editor-container">
     <textarea id="pasteTextArea" name="paste" required>${paste}</textarea>
     <div id="editor"></div>
@@ -40,7 +42,7 @@ const layout = (title: string, content: string) => `
     <link rel="stylesheet" href="/codemirror.min.css">
     <link rel="stylesheet" href="/main.css">
     <title>
-      ${title || 'ScripturePad'}
+      ${title || "ScripturePad"}
     </title>
   </head>
   <body>
@@ -63,9 +65,9 @@ const layout = (title: string, content: string) => `
         </div>
         <div class="antioch-logo-container">
           <a href="https://www.antiochnetwork.org.uk" target="_blank" rel="noopener noreferrer">
-            <img 
-              src="https://www.antiochnetwork.org.uk/images/elements/xfooter_logo.png,ql=20270704.11.pagespeed.ic.456AOnF_xg.png" 
-              alt="Antioch Network Manchester Logo" 
+            <img
+              src="https://www.antiochnetwork.org.uk/images/elements/xfooter_logo.png,ql=20270704.11.pagespeed.ic.456AOnF_xg.png"
+              alt="Antioch Network Manchester Logo"
               class="antioch-logo"
             />
           </a>
@@ -78,10 +80,13 @@ const layout = (title: string, content: string) => `
 `;
 
 export const homePage = ({
-  paste = '',
-  url = '',
-  errors = { url: '', editCode: '' },
-} = {}) => layout('ScripturePad', `
+  paste = "",
+  url = "",
+  errors = { url: "", editCode: "" },
+} = {}) =>
+  layout(
+    "ScripturePad",
+    `
   <main>
     ${ErrorNotification(errors.editCode || errors.url)}
     ${Tabs()}
@@ -102,9 +107,12 @@ export const homePage = ({
             aria-invalid="${Boolean(errors.url)}"
             ${_if(errors.url, 'aria-describedby="url-error"')}
           />
-          ${_if(errors.url, `
+          ${_if(
+            errors.url,
+            `
             <small class="error" id="url-error">${errors.url}</small>
-          `)}
+          `,
+          )}
         </div>
         <div>
           <input
@@ -117,9 +125,12 @@ export const homePage = ({
             aria-invalid="${Boolean(errors.editCode)}"
             ${_if(errors.editCode, 'aria-describedby="editcode-error"')}
           />
-          ${_if(errors.editCode, `
+          ${_if(
+            errors.editCode,
+            `
             <small class="error" id="editcode-error">${errors.editCode}</small>
-          `)}
+          `,
+          )}
         </div>
       </div>
 
@@ -136,9 +147,13 @@ export const homePage = ({
   <script src="/cm-sublime.min.js"></script>
   <script src="/utils.js" type="module"></script>
   <script src="/editor.js" type="module"></script>
-`);
+`,
+  );
 
-export const pastePage = ({ id = '', html = '', title = '' } = {}) => layout(title, `
+export const pastePage = ({ id = "", html = "", title = "" } = {}) =>
+  layout(
+    title,
+    `
   <main>
     <div class="dropdown-selectors">
       <label for="language-select">Select Language: </label>
@@ -160,19 +175,30 @@ export const pastePage = ({ id = '', html = '', title = '' } = {}) => layout(tit
     </div>
     <script type="module" src="/viewer.js"></script>
   </main>
-`);
+`,
+  );
 
-export const guidePage = ({ html = '', title = '' } = {}) => layout(title, `
+export const guidePage = ({ html = "", title = "" } = {}) =>
+  layout(
+    title,
+    `
   <main>
     <div class="paste-container">
       ${html}
     </div>
   </main>
-`);
+`,
+  );
 
-export const editPage = (
-  { id = '', paste = '', hasEditCode = false, errors = { editCode: '' } } = {},
-) => layout(`edit ${id}`, `
+export const editPage = ({
+  id = "",
+  paste = "",
+  hasEditCode = false,
+  errors = { editCode: "" },
+} = {}) =>
+  layout(
+    `edit ${id}`,
+    `
   <main>
     ${ErrorNotification(errors.editCode)}
     ${Tabs()}
@@ -182,7 +208,9 @@ export const editPage = (
 
       <input class="display-none" name="url" type="text" value="${id}" disabled />
       <div class="input-group">
-        ${_if(hasEditCode, `
+        ${_if(
+          hasEditCode,
+          `
           <div>
             <input
               name="editcode"
@@ -195,11 +223,15 @@ export const editPage = (
               ${_if(errors.editCode, 'aria-describedby="editcode-error"')}
             />
 
-            ${_if(errors.editCode, `
+            ${_if(
+              errors.editCode,
+              `
               <small class="error" id="editcode-error">${errors.editCode}</small>
-            `)}
+            `,
+            )}
           </div>
-        `)}
+        `,
+        )}
       </div>
 
       <div class="button-group">
@@ -215,11 +247,17 @@ export const editPage = (
   <script src="/cm-sublime.min.js"></script>
   <script src="/utils.js" type="module"></script>
   <script src="/editor.js" type="module"></script>
-`);
+`,
+  );
 
-export const deletePage = (
-  { id = '', hasEditCode = false, errors = { editCode: '' } } = {}
-) => layout(`delete ${id}`, `
+export const deletePage = ({
+  id = "",
+  hasEditCode = false,
+  errors = { editCode: "" },
+} = {}) =>
+  layout(
+    `delete ${id}`,
+    `
   <main>
     ${ErrorNotification(errors.editCode)}
     <div>
@@ -228,7 +266,9 @@ export const deletePage = (
     </div>
     <form method="post" action="/${id}/delete">
       <div class="input-group">
-        ${_if(hasEditCode, `
+        ${_if(
+          hasEditCode,
+          `
           <div>
             <input
               name="editcode"
@@ -241,11 +281,15 @@ export const deletePage = (
               ${_if(errors.editCode, 'aria-describedby="editcode-error"')}
             />
 
-            ${_if(errors.editCode, `
+            ${_if(
+              errors.editCode,
+              `
               <small class="error" id="editcode-error">${errors.editCode}</small>
-            `)}
+            `,
+            )}
           </div>
-        `)}
+        `,
+        )}
       </div>
 
       <div class="button-group">
@@ -259,11 +303,16 @@ export const deletePage = (
       </div>
     </form>
   </main>
-`);
+`,
+  );
 
-export const errorPage = () => layout('404', `
+export const errorPage = () =>
+  layout(
+    "404",
+    `
   <main>
     <h1>404</h1>
     <p>That paste doesn't exist! Maybe it was deleted?</p>
   </main>
-`);
+`,
+  );
