@@ -44,6 +44,7 @@ export const bibleBooks = {
   Ecclesiastes: "ECC",
   Ecc: "ECC",
   "Song of Solomon": "SNG",
+  "Song of Songs": "SNG",
   Song: "SNG",
   Isaiah: "ISA",
   Isa: "ISA",
@@ -204,37 +205,55 @@ export const testamentLookup = {
   REV: "NT",
 };
 
+// Build a regex alternation from the bibleBooks keys (sorted by descending length)
+const bibleBooksRegex = Object.keys(bibleBooks)
+  .sort((a, b) => b.length - a.length)
+  .join("|");
+
 export const scriptureReftagExtension = {
   name: "scriptureReference",
-  level: "inline",
+  level: "inline", // Inline level for mid-paragraph detection
+
+  // The start function helps the parser find potential starts of references
+  start(src) {
+    // Find indices of all potential Bible book names
+    // This is an optimization to help the tokenizer find references efficiently
+
+    // Look for common book name patterns followed by a space and digits
+    // This pattern looks for word characters followed by a space and a digit
+    const pattern = /\b[A-Za-z1-3][A-Za-z1-3 ]+\s\d/g;
+    let match;
+    let index = -1;
+
+    // Find the first potential match
+    if ((match = pattern.exec(src)) !== null) {
+      index = match.index;
+    }
+
+    return index;
+  },
+
   tokenizer(src, tokens) {
-    // More precise match for scripture references followed by an equals sign
-    // Don't include whitespace after the equals sign
-    const scriptureRegex =
-      /^([A-Za-z1-3][A-Za-z1-3 ]+)\s(\d+)(?::(\d+)(?:-(\d+))?)?\s*=/;
+    // This regex matches a Bible reference at the beginning of src.
+    // It requires a valid book name (optionally preceded by 1/2/3), a chapter,
+    // optionally a verse or verse range, optional spaces, and a trailing "&".
+    const scriptureRegex = new RegExp(
+      `^((?:[1-3]\\s*)?(?:${bibleBooksRegex}))\\s+(\\d+)(?::(\\d+)(?:-(\\d+))?)?\\s*&`,
+      "i",
+    );
+
     const match = scriptureRegex.exec(src);
-
     if (match) {
-      const bookName = match[1].trim();
-      // Make sure the book name is valid
-      if (bibleBooks[bookName]) {
-        const chapter = match[2];
-        const startVerse = match[3] || null;
-        const endVerse = match[4] || startVerse;
-
-        // Get the reference text without the equals sign
-        const referenceText = src.substring(0, match[0].length - 1).trim();
-
-        return {
-          type: "scriptureReference",
-          raw: match[0], // The full match including the =
-          book: bibleBooks[bookName],
-          chapter: chapter,
-          startVerse: startVerse,
-          endVerse: endVerse,
-          referenceText: referenceText,
-        };
-      }
+      return {
+        type: "scriptureReference",
+        raw: match[0],
+        bookName: match[1].trim(),
+        book: bibleBooks[match[1].trim()],
+        chapter: match[2],
+        startVerse: match[3] || null,
+        endVerse: match[4] || match[3] || null,
+        referenceText: match[0].substring(0, match[0].length - 1).trim(),
+      };
     }
   },
   renderer(token) {
@@ -251,29 +270,24 @@ export const scriptureReftagExtension = {
   },
 };
 
+// No-translate detection using '&' as the delimiter
 export const noTranslateExtension = {
   name: "noTranslate",
   level: "inline",
-  // The tokenizer uses a regex that does the following:
-  // • Captures any whitespace immediately before the opening "=" (Group 1)
-  // • Matches an "=" only if it is immediately followed by a non-space ((?=\S))
-  // • Lazily captures the inner content (Group 2) that must end with a non-space (enforced via a lookbehind)
-  // • Matches the closing "=" only if it is immediately preceded by a non-space ((?<=\S))
-  // • Captures any whitespace immediately after the closing "=" (Group 3)
+  start(src) {
+    return src.indexOf("&");
+  },
   tokenizer(src, tokens) {
-    const rule = /^(\s*)=(?=\S)([\s\S]*?)(?<=\S)=(\s*)/;
+    const rule = /^(\s*)&(?=\S)([\s\S]*?)(?<=\S)&(\s*)/;
     const match = rule.exec(src);
     if (match) {
       return {
         type: "noTranslate",
         raw: match[0],
-        // Combine the whitespace before the opening "=" (if any),
-        // the core content, and the whitespace after the closing "=".
         text: match[1] + match[2] + match[3],
       };
     }
   },
-  // The renderer wraps the captured text in a span with translate="no"
   renderer(token) {
     return `<span translate="no">${token.text}</span>`;
   },

@@ -13,6 +13,7 @@ The following guide has been adapted with modifications from [learnxinyminutes](
         <li><a href="#custom-urls">Custom URLs</a></li>
         <li><a href="#edit-codes">Edit Codes</a></li>
         <li><a href="#untranslatable-content">Untranslatable Content</a></li>
+        <li><a href="#scripture-citations">Scripture Citations</a></li>
         <li><a href="#html-elements">HTML Elements</a></li>
         <li><a href="#headings">Headings</a></li>
         <li><a href="#simple-text-styles">Simple text styles</a></li>
@@ -50,20 +51,34 @@ When creating multilingual content, you may want to prevent certain words or phr
 ```md
 This is normal text that will be translated.
 
-But =proper names= like =John Smith= or =Jerusalem= will be protected from translation.
+But &proper names& like &John Smith& or &Jerusalem& will be protected from translation.
 
-Greek words like =agape= or =logos= will remain untranslated.
+Greek words like &agape& or &logos& will remain untranslated.
 
-Scripture references like =John 3:16= or =Romans 8:28= will stay as is.
+Scripture references like &John 3:16& or &Romans 8:28& will stay as is.
 ```
 
-Simply wrap any text you want to protect from translation in equals signs (`=`). This will add a special `translate="no"` attribute to the HTML, which is respected by most automatic translation tools like Google Translate.
+Simply wrap any text you want to protect from translation in ampersand signs (`&`). This will add a special `translate="no"` attribute to the HTML, which is respected by most automatic translation tools like Google Translate.
 
 This is particularly useful for:
-- Scripture references (=Matthew 5:1-12=)
-- Names of people and places (=Peter=, =Capernaum=)
-- Original language terms (=koinonia=, =shalom=)
-- Technical theological terms (=justification=, =sanctification=)
+- Scripture references (&Matthew 5:1-12&)
+- Names of people and places (&Peter&, &Capernaum&)
+- Original language terms (&koinonia&, &shalom&)
+- Technical theological terms (&justification&, &sanctification&)
+
+## Scripture Citations
+
+ScripturePad makes it easy to include scripture passages in your notes. Simply add a Bible reference followed by an ampersand and space:
+
+```md
+John 3:16 &
+
+Psalm 23:1-6 &
+
+Song of Songs 2 &
+```
+
+This will automatically insert the full scripture text when the note is rendered, making it easy for readers to see the referenced passages without looking them up separately. The citation will pull from the available Bible translations.
 
 ## HTML Elements
 
