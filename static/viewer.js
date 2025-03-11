@@ -154,9 +154,6 @@ async function processBibleReferences(selectedLanguage) {
     if (fileset.id && !bibleId) {
       // The Bible ID is typically the first 6 characters of the fileset ID
       bibleId = fileset.id.substring(0, 6);
-      console.log(
-        `Extracted Bible ID: ${bibleId} from fileset ID: ${fileset.id}`,
-      );
     }
 
     if (["text_format", "text_plain"].includes(fileset.type)) {
