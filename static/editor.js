@@ -22,6 +22,7 @@ import { scriptureReftagExtension, noTranslateExtension } from "./utils.js";
     keymap: "sublime",
     theme: "default",
     viewportMargin: Infinity,
+    lineWrapping: true, // Enable word wrapping
   });
 
   // attach editor to window
