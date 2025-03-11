@@ -76,6 +76,18 @@ function onLanguageChange() {
   // When we detect a change to the page language or on load, do this
   languageSelect.value = getPageLanguage("DBT");
   onLanguageSelect();
+
+  // Check if the "translated-rtl" class has been added to the HTML tag
+  const htmlElement = document.documentElement;
+  if (htmlElement.classList.contains("translated-rtl")) {
+    // Add dir="rtl" attribute for right-to-left languages
+    htmlElement.setAttribute("dir", "rtl");
+    console.log("RTL language detected, setting dir='rtl'");
+  } else {
+    // Remove dir="rtl" attribute if the class is not present
+    htmlElement.removeAttribute("dir");
+    console.log("Non-RTL language detected, removing dir attribute");
+  }
 }
 
 // Cache for filesets to avoid repeated lookups
@@ -369,16 +381,33 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 // See https://martijnhols.nl/gists/how-to-detect-google-translate-and-other-machine-translation
-const languageObserver = new MutationObserver(() => {
-  const lang = document.documentElement.lang;
-  if (lang !== currentLanguage) {
-    currentLanguage = lang;
+const languageObserver = new MutationObserver((mutations) => {
+  let languageChanged = false;
+  let classChanged = false;
+
+  // Check each mutation to see what changed
+  for (const mutation of mutations) {
+    if (mutation.attributeName === "lang") {
+      const lang = document.documentElement.lang;
+      if (lang !== currentLanguage) {
+        currentLanguage = lang;
+        languageChanged = true;
+      }
+    } else if (mutation.attributeName === "class") {
+      classChanged = true;
+    }
+  }
+
+  // If either language or class changed, update accordingly
+  if (languageChanged || classChanged) {
     onLanguageChange();
   }
 });
+
+// Observe both lang and class attribute changes
 languageObserver.observe(document.documentElement, {
   attributes: true,
-  attributeFilter: ["lang"],
+  attributeFilter: ["lang", "class"],
   childList: false,
   characterData: false,
 });
