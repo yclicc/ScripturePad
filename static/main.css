@@ -623,11 +623,36 @@ textarea,
     body {
         background-color: white;
         color: black;
+        font-size: 11pt !important;
+        line-height: 1.4 !important;
     }
     
     .paste-container {
         background-color: white !important;
         padding: 0 !important;
+    }
+    
+    /* Adjust heading sizes for print */
+    h1 { font-size: 16pt !important; }
+    h2 { font-size: 14pt !important; }
+    h3, h4, h5, h6 { font-size: 12pt !important; }
+    
+    /* Reduce margins and padding to save space */
+    p, ul, ol, blockquote {
+        margin-top: 0.3em !important;
+        margin-bottom: 0.3em !important;
+    }
+    
+    /* Make sure scripture references are visible but compact */
+    .scripture-text {
+        margin: 0.3em 0 !important;
+        padding: 0.3em !important;
+        border-left-width: 2px !important;
+    }
+    
+    /* Ensure copyright is legible but small */
+    .scripture-copyright {
+        font-size: 9pt !important;
     }
 }
 
