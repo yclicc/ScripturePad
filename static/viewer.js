@@ -15,7 +15,9 @@ function langMTtoDBT(inCode) {
     // If Farsi, assume "Western Persian"
     return "pes";
   }
-  var outCode = langs.where("1", inCode)["3"];
+  var outCode =
+    (langs.has("1", inCode) ? langs.where("1", inCode)["3"] : undefined) ||
+    (langs.has("3", inCode) ? inCode : undefined);
   if (outCode == "ara") {
     outCode = "arb";
   }

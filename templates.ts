@@ -155,15 +155,25 @@ export const pastePage = ({ id = "", html = "", title = "" } = {}) =>
     title,
     `
   <main>
-    <div class="dropdown-selectors">
-      <label for="language-select">Select Language: </label>
-      <select id="language-select" name="language-select">
-        <!-- Options will be populated here -->
-      </select>
-      <label for="version-select">Select Version: </label>
-      <select id="version-select" name="version-select">
-        <!-- Options will be populated here -->
-      </select>
+    <div class="bible-controls">
+      <div class="translation-note">
+        <p>Use your browser's translation feature (like Google Translate) to translate this entire page.</p>
+        <p>The Bible references will not be translated by machine but the page will detect the new language and insert from a proper translation, if available</p>
+      </div>
+      <div class="dropdown-selectors">
+        <div class="select-group">
+          <label for="language-select">Select Bible Language: </label>
+          <select id="language-select" name="language-select">
+            <!-- Options will be populated here -->
+          </select>
+        </div>
+        <div class="select-group">
+          <label for="version-select">Select Version: </label>
+          <select id="version-select" name="version-select">
+            <!-- Options will be populated here -->
+          </select>
+        </div>
+      </div>
     </div>
     <div class="paste-container">
       ${html}

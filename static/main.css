@@ -469,6 +469,47 @@ textarea,
     color: var(--color-text);
 }
 
+/* Bible controls container */
+.bible-controls {
+    margin-bottom: var(--spacing-3);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: var(--spacing-3);
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Translation note */
+.translation-note {
+    margin-bottom: var(--spacing-3);
+    padding: var(--spacing-2);
+    background-color: rgba(255, 255, 255, 0.1);
+    border-left: 3px solid var(--link-color);
+    font-size: 0.9em;
+}
+
+.translation-note p {
+    margin: 0;
+}
+
+/* Display selectors on consecutive lines */
+.dropdown-selectors {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+}
+
+/* Style each select group to keep label with its select */
+.select-group {
+    display: flex;
+    align-items: center;
+}
+
+/* Keep labels next to their select elements */
+.select-group label {
+    white-space: nowrap;
+    margin-right: var(--spacing-1);
+}
+
 /* Copyright information in footer */
 .scripture-copyright {
     font-size: 0.8em;
@@ -518,6 +559,34 @@ textarea,
 @keyframes errorFadeOut {
     from { opacity: 1; }
     to { opacity: 0; visibility: hidden; }
+}
+
+/* Print-specific styles */
+@media print {
+    .translation-note,
+    .button-group,
+    .antioch-footer,
+    .dark-mode-container,
+    .footer-links {
+        display: none !important;
+    }
+    
+    .bible-controls {
+        border: none;
+        background: none;
+        padding: 0;
+        margin-bottom: var(--spacing-2);
+    }
+    
+    body {
+        background-color: white;
+        color: black;
+    }
+    
+    .paste-container {
+        background-color: white !important;
+        padding: 0 !important;
+    }
 }
 
 /* Field-level errors */
