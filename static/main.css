@@ -467,6 +467,16 @@ textarea,
     border: 1px solid var(--color-border);
     background-color: var(--color-bg);
     color: var(--color-text);
+    max-width: 100%;
+    width: auto;
+    min-width: 200px;
+}
+
+/* Make sure options don't overflow */
+.dropdown-selectors select option {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Bible controls container */
@@ -476,6 +486,8 @@ textarea,
     border-radius: 4px;
     padding: var(--spacing-3);
     background-color: rgba(0, 0, 0, 0.05);
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 /* Translation note */
@@ -498,16 +510,18 @@ textarea,
     gap: var(--spacing-2);
 }
 
-/* Style each select group to keep label with its select */
+/* Style each select group */
 .select-group {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    max-width: 100%;
 }
 
-/* Keep labels next to their select elements */
+/* Allow labels to wrap when extremely constrained */
 .select-group label {
-    white-space: nowrap;
     margin-right: var(--spacing-1);
+    margin-bottom: var(--spacing-1);
 }
 
 /* Copyright information in footer */
@@ -562,6 +576,34 @@ textarea,
 }
 
 /* Print-specific styles */
+/* Adjustments for small screens */
+@media (max-width: 500px) {
+    .dropdown-selectors select {
+        width: 100%;
+    }
+}
+
+/* Adjustments for very small screens */
+@media (max-width: 360px) {
+    .bible-controls {
+        padding: var(--spacing-2);
+    }
+    
+    .translation-note {
+        padding: var(--spacing-1);
+        font-size: 0.85em;
+    }
+    
+    main {
+        margin: 0;
+        padding: 0;
+    }
+    
+    body {
+        margin: var(--spacing-2);
+    }
+}
+
 @media print {
     .translation-note,
     .button-group,
