@@ -157,8 +157,8 @@ export const pastePage = ({ id = "", html = "", title = "" } = {}) =>
   <main>
     <div class="bible-controls">
       <div class="translation-note">
-        <p>Use your browser's translation feature (like Google Translate) to translate this entire page.</p>
-        <p>The Bible references will not be translated by machine but the page will detect the new language and insert from a proper translation, if available</p>
+        <p>To view this page in your language, use your browser's built-in translation feature (such as Google Translate or Microsoft Translator).</p>
+        <p>While the main text will be machine translated, Bible verses will be automatically replaced with passages from official Bible translations in the detected language, when available.</p>
       </div>
       <div class="dropdown-selectors">
         <div class="select-group">
