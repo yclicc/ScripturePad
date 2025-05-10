@@ -32,6 +32,8 @@ const API_KEY = Deno.env.get("API_KEY");
 const API_URL = "https://4.dbt.io/api/";
 const API_VERSION_NUMBER = 4;
 const STATIC_ROOT = resolve("./static");
+// Flag to refresh cache instead of using cached values
+const REFRESH_CACHE = Deno.env.get("REFRESH_CACHE") === "true";
 
 // Get allowed edit codes from environment
 const ALLOWED_EDIT_CODES_STR = Deno.env.get("ALLOWED_EDIT_CODES") ?? "";
@@ -427,12 +429,11 @@ async function get_paginated(url, sortKey?: string, pageSize = 150) {
   let hasMore = true;
 
   while (hasMore) {
-    const externalResponse = await fetch(
-      `${url}&limit=${pageSize}&page=${page}`,
-      {
-        method: "GET",
-      },
-    );
+    const fullUrl = `${url}&limit=${pageSize}&page=${page}`;
+    console.log(fullUrl);
+    const externalResponse = await fetch(fullUrl, {
+      method: "GET",
+    });
     const data = await externalResponse.json();
     console.log(data);
     allResults = allResults.concat(data.data);
@@ -482,7 +483,7 @@ function collectCompleteBibles(data) {
   const completeBibles = {};
 
   for (let bible of data) {
-    const { language, autonym, iso, name, filesets } = bible;
+    const { language, autonym, iso, name, vname, filesets } = bible;
 
     if (hasWholeBible(bible)) {
       if (!completeBibles[language]) {
@@ -493,8 +494,11 @@ function collectCompleteBibles(data) {
         };
       }
 
+      const storedName =
+        vname !== null && vname !== name ? `${name} (${vname})` : name;
+
       // Add the Bible name and its filesets to the appropriate language
-      completeBibles[language].bibles[name] = filesets;
+      completeBibles[language].bibles[storedName] = filesets;
     }
   }
 
@@ -526,7 +530,7 @@ function collectCompleteBibles(data) {
 app.get("/api/completebibles", async (req) => {
   const cache = await caches.open("data-cache");
   const cached = await cache.match(req);
-  if (cached) {
+  if (cached && !REFRESH_CACHE) {
     return cached;
   }
 
@@ -537,7 +541,7 @@ app.get("/api/completebibles", async (req) => {
     const intermediate_response = await get_paginated(
       `${API_URL}bibles?key=${API_KEY}&v=${API_VERSION_NUMBER}&media=text_plain`,
       undefined,
-      50,
+      150,
     );
     const data = await intermediate_response.clone().json();
 
