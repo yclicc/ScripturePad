@@ -102,10 +102,17 @@ async function onLanguageSelect() {
   // Get the selected language ISO code
   const selectedLanguageCode = languageSelect.value;
 
+  // Get the selected language full text name
+  const selectedLanguageFullname =
+    languageSelect[languageSelect.selectedIndex].text;
+
   // Find the language data in the completeBibleData
-  const selectedLanguage = Object.keys(completeBibleData).find(
-    (langName) => completeBibleData[langName].iso === selectedLanguageCode,
-  );
+  const selectedLanguage = Object.keys(completeBibleData).find((langName) => {
+    return (
+      completeBibleData[langName].iso === selectedLanguageCode &&
+      selectedLanguageFullname.includes(langName)
+    );
+  });
 
   // If we found the language data, populate the versions dropdown
   if (selectedLanguage && completeBibleData[selectedLanguage]) {
