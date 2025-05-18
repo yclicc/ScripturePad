@@ -423,7 +423,7 @@ function sortByKey(array: any[], key) {
   });
 }
 
-async function get_paginated(url, sortKey?: string, pageSize = 150) {
+async function get_paginated(url, sortKey?: string, pageSize = 10) {
   let allResults: any[] = [];
   let page = 1;
   let hasMore = true;
@@ -541,7 +541,7 @@ app.get("/api/completebibles", async (req) => {
     const intermediate_response = await get_paginated(
       `${API_URL}bibles?key=${API_KEY}&v=${API_VERSION_NUMBER}&media=text_plain`,
       undefined,
-      150,
+      10,
     );
     const data = await intermediate_response.clone().json();
 
