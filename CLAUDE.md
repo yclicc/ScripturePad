@@ -349,6 +349,52 @@ Update this section once `package.json` actually exists.
 - Prettier + ESLint (replacing the old `deno fmt` / `deno lint`).
 - Explicit types on exported/public functions.
 
+## Deployment
+
+Target: **scripturepad.org**, on Cloudflare Workers.
+
+```bash
+npm run db:migrate:remote   # apply migrations to the live D1 database
+npm run deploy              # build and publish the Worker
+```
+
+Bindings live in `wrangler.jsonc`; secrets are set with `wrangler secret put`
+and are never committed.
+
+### Putting the domain on Cloudflare
+
+`scripturepad.org` is registered through Squarespace (which absorbed Google
+Domains) and still resolves via `ns-cloud-*.googledomains.com`. A Worker cannot
+serve a custom domain until Cloudflare is authoritative for the zone:
+
+1. Cloudflare dashboard → **Add a site** → `scripturepad.org` (Free plan is
+   enough), and let it import the existing DNS records.
+2. Squarespace → **Domains → DNS → Nameservers** → replace the Google ones with
+   the two Cloudflare gives you. Propagation is usually under an hour.
+3. Once the zone is active, add the route to `wrangler.jsonc`:
+
+   ```jsonc
+   "routes": [
+     { "pattern": "scripturepad.org/*", "zone_name": "scripturepad.org" },
+     { "pattern": "www.scripturepad.org/*", "zone_name": "scripturepad.org" }
+   ]
+   ```
+
+Check the existing A record (`34.120.54.55`) first — if a current site is
+served from it, keep that record until the cutover is intended.
+
+### OAuth registration
+
+Sign in with YouVersion needs a redirect URL registered at
+platform.youversion.com before a client id is issued, which is why auth could
+not be finished before a deployable URL existed. Register both:
+
+- `https://scripturepad.org/auth/callback` (production)
+- `http://localhost:8787/auth/callback` (local development)
+
+Then `wrangler secret put YOUVERSION_CLIENT_ID` with the issued id, and put the
+same value in `.dev.vars` for local work.
+
 ## Secrets
 
 Never commit secrets. Local values go in `.dev.vars` (gitignored); deployed
