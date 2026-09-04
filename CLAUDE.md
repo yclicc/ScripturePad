@@ -214,6 +214,40 @@ Step 2 is language-conditional: inheriting the author's English version is
 wrong for a reader viewing the page in Swahili, so fall through to the default
 for that language when the tags do not match.
 
+### Privacy and cookies
+
+**No cookie consent banner is required**, and one should not be added while
+this stays true. The ePrivacy Directive (Art. 5(3)) — the law that actually
+governs cookies — exempts those *strictly necessary* to provide a service the
+user requested. Both of ours qualify:
+
+| Cookie | Purpose | Lifetime |
+| --- | --- | --- |
+| `sp_session` | Authentication after sign-in | 30 days |
+| `sp_pkce` | CSRF/PKCE state during sign-in | 10 minutes |
+
+Neither profiles users, tracks across sites, nor feeds analytics. **Adding any
+analytics or embedded third-party content changes this** and would require a
+consent banner.
+
+GDPR still applies to the personal data held, which is deliberately minimal:
+
+- `sessions` — `yvp_id`, display name, avatar URL. Deleted on sign-out, on
+  expiry, and by `purgeExpiredSessions` so rows do not outlive their purpose.
+- `documents.owner_id` and `user_preferences.yvp_id` — an opaque identifier,
+  not a name.
+
+Rules to keep it that way:
+
+- **Do not request the `email` scope.** It was requested at first and never
+  used, which breaches data minimisation and makes the consent screen ask for
+  more than the app needs. Only `openid profile` is requested.
+- Store no more of a YouVersion profile than is displayed.
+- Before launch, add a short privacy notice covering what is stored, why, and
+  how to delete it. Deletion is already possible — signing out clears the
+  session, and a document delete removes its content — but it should be
+  written down.
+
 ### Storage decision
 
 Paste content lives in **our own D1 database**. Storing documents in the user's
@@ -410,6 +444,28 @@ call is rejected:
 The authorize request must include `nonce` alongside `state`: `state` defends
 against CSRF, `nonce` against replay, and the id token echoes the nonce back
 for checking.
+
+**The flow has three legs, not two.** The first callback arrives carrying only
+`state` (no `code`). The authorization code is obtained by replaying that state
+against `https://api.youversion.com/auth/callback`, which must be a **top-level
+browser navigation** — a 302 from the Worker — because a browser cannot read
+the `Location` header of a redirected `fetch`. Treating the code-less callback
+as a cancelled sign-in is the obvious wrong turn.
+
+**The `iss` claim is not the origin.** Tokens are issued with
+`iss = https://api.youversion.com/auth/token`, a full endpoint path where an
+origin is conventional. Verifying against the origin fails with
+`unexpected "iss" claim value` even though the signature is valid. The value is
+read from `/.well-known/openid-configuration` rather than hardcoded. That
+document also reports the endpoints as `login.youversion.com`, though the
+`api.` host works.
+
+**Never comma-join `Set-Cookie` headers.** Most repeated headers can be
+combined with commas; `Set-Cookie` cannot, because its attributes contain
+commas (`Expires` dates). Joining the session and PKCE cookies into one header
+made the browser drop both — sign-in completed and the session row was written,
+but the user came back signed out. Use `Headers.append` so each is its own
+header.
 
 **`run_worker_first` is required for `/auth/*` and `/api/*`.** With
 `not_found_handling: "single-page-application"`, Cloudflare's asset layer

@@ -3,6 +3,7 @@ import type { Env, SessionUser, Variables } from "./env.ts";
 import {
   getSessionUser,
   handleCallback,
+  purgeExpiredSessions,
   signOut,
   startSignIn,
 } from "./auth.ts";
@@ -10,6 +11,7 @@ import {
   createDocument,
   deleteDocument,
   getDocument,
+  listDocumentsByOwner,
   updateDocument,
 } from "./storage.ts";
 import { getHttpStatus } from "@youversion/platform-core";
@@ -34,7 +36,11 @@ app.get("/auth/signin", async (c) =>
   startSignIn(c.req.raw, c.env, c.req.query("return_to") ?? "/"),
 );
 
-app.get("/auth/callback", async (c) => handleCallback(c.req.raw, c.env));
+app.get("/auth/callback", async (c) => {
+  // Opportunistic cleanup, after the response so the user does not wait.
+  c.executionCtx.waitUntil(purgeExpiredSessions(c.env));
+  return handleCallback(c.req.raw, c.env);
+});
 
 app.post("/auth/signout", async (c) => signOut(c.req.raw, c.env));
 
@@ -119,6 +125,24 @@ api.get("/versions", async (c) => {
   }
 });
 
+/** The signed-in user's own documents, newest first. */
+api.get("/documents", async (c) => {
+  const owner = getUser(c);
+  if (!owner) return c.json({ error: "Sign in to see your notes." }, 401);
+
+  const documents = await listDocumentsByOwner(c.env, owner);
+
+  // Content is deliberately omitted: a list view only needs the metadata, and
+  // sending every document's full body would be wasteful.
+  return c.json(
+    documents.map((doc) => ({
+      id: doc.id,
+      title: doc.title,
+      updatedAt: doc.updatedAt,
+    })),
+  );
+});
+
 api.get("/documents/:id", async (c) => {
   const doc = await getDocument(c.env, c.req.param("id"));
   if (!doc) return c.json({ error: "Not found" }, 404);
@@ -136,6 +160,14 @@ api.get("/documents/:id", async (c) => {
 });
 
 api.post("/documents", async (c) => {
+  // Creation requires an account. An anonymous document would have a null
+  // owner, which `canEdit` treats as locked — so it could never be edited or
+  // deleted by anyone, leaving undeletable content and an open spam vector.
+  const owner = getUser(c);
+  if (!owner) {
+    return c.json({ error: "Sign in to save notes." }, 401);
+  }
+
   const body = await c.req.json().catch(() => null);
   if (!body || typeof body !== "object" || !("content" in body)) {
     return c.json({ error: "Expected a JSON body with `content`" }, 400);
@@ -149,7 +181,7 @@ api.post("/documents", async (c) => {
   };
 
   const doc = await createDocument(c.env, {
-    ownerId: getUser(c),
+    ownerId: owner,
     title: typeof title === "string" ? title.slice(0, 300) : "",
     content: JSON.stringify(content),
     sourceLang: typeof sourceLang === "string" ? sourceLang : "en",

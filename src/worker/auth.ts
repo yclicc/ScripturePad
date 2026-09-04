@@ -9,6 +9,8 @@ import type { Env, SessionUser } from "./env.ts";
  */
 const AUTHORIZE_URL = "https://api.youversion.com/auth/authorize";
 const TOKEN_URL = "https://api.youversion.com/auth/token";
+/** Second leg: replaying `state` here yields the authorization code. */
+const CALLBACK_URL = "https://api.youversion.com/auth/callback";
 
 /**
  * The OAuth `client_id` is the YouVersion **app key** — there is no separate
@@ -69,6 +71,8 @@ interface PkceState {
   nonce: string;
   /** Where to send the user once signed in. */
   returnTo: string;
+  /** Set once the state has been replayed, to stop a redirect loop. */
+  replayed?: boolean;
 }
 
 function cookie(
@@ -121,7 +125,11 @@ export async function startSignIn(
   authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("client_id", clientId(env));
   authorizeUrl.searchParams.set("redirect_uri", redirectUri);
-  authorizeUrl.searchParams.set("scope", "openid profile email");
+  // `email` is deliberately not requested: it is never stored or used, and
+  // asking for it would both breach data minimisation and make the consent
+  // screen demand more than the app needs. `profile` supplies the display name
+  // shown in the toolbar.
+  authorizeUrl.searchParams.set("scope", "openid profile");
   authorizeUrl.searchParams.set("state", state);
   authorizeUrl.searchParams.set("nonce", nonce);
   authorizeUrl.searchParams.set("code_challenge", await codeChallenge(codeVerifier));
@@ -162,6 +170,44 @@ const JWKS = createRemoteJWKSet(
 );
 
 /**
+ * The `iss` claim, read from OIDC discovery rather than hardcoded.
+ *
+ * It is worth fetching because the value is not guessable: YouVersion issues
+ * tokens with `iss` set to `https://api.youversion.com/auth/token` — a full
+ * endpoint path, where an origin is conventional. Guessing the origin fails
+ * verification with "unexpected iss claim value" even though the signature is
+ * perfectly valid.
+ *
+ * Cached per isolate; falls back to the observed value if discovery is
+ * unreachable, so sign-in still works during a provider blip.
+ */
+const DISCOVERY_URL =
+  "https://api.youversion.com/.well-known/openid-configuration";
+const FALLBACK_ISSUER = "https://api.youversion.com/auth/token";
+
+let cachedIssuer: string | null = null;
+
+async function issuer(): Promise<string> {
+  if (cachedIssuer) return cachedIssuer;
+
+  try {
+    const res = await fetch(DISCOVERY_URL);
+    if (res.ok) {
+      const config = (await res.json()) as { issuer?: string };
+      if (config.issuer) {
+        cachedIssuer = config.issuer;
+        return cachedIssuer;
+      }
+    }
+  } catch {
+    // Fall through to the known value.
+  }
+
+  cachedIssuer = FALLBACK_ISSUER;
+  return cachedIssuer;
+}
+
+/**
  * Verify a token and return its claims.
  *
  * The signature must be checked: an unverified JWT is attacker-controlled
@@ -173,7 +219,7 @@ async function verifyToken(
 ): Promise<Record<string, unknown> | null> {
   try {
     const { payload } = await jwtVerify(token, JWKS, {
-      issuer: "https://api.youversion.com",
+      issuer: await issuer(),
     });
     return payload as Record<string, unknown>;
   } catch (error) {
@@ -226,7 +272,40 @@ export async function handleCallback(
   }
 
   if (!code) {
-    return new Response("Sign-in was cancelled.", { status: 400 });
+    // YouVersion's flow has three legs, not the usual two: the first callback
+    // carries only `state`, and the authorization code is issued by replaying
+    // that state against their /auth/callback. Their docs require this to be a
+    // top-level browser navigation rather than a fetch, because a browser
+    // cannot read the Location header of a redirected fetch — a 302 from here
+    // is exactly that navigation.
+    //
+    // The replay flag lives in the cookie rather than the query string,
+    // because YouVersion redirects to the registered callback URL and will not
+    // carry an extra parameter through. Without it a replay that returns no
+    // code would bounce forever.
+    if (pkce.replayed) {
+      return new Response(
+        "Sign-in did not return an authorization code.\n\n" +
+          "The state replay to YouVersion completed but no code came back.",
+        { status: 502, headers: { "content-type": "text/plain" } },
+      );
+    }
+
+    const replay = new URL(CALLBACK_URL);
+    replay.searchParams.set("state", returnedState);
+
+    return new Response(null, {
+      status: 302,
+      headers: {
+        location: replay.toString(),
+        "set-cookie": cookie(
+          PKCE_COOKIE,
+          btoa(JSON.stringify({ ...pkce, replayed: true })),
+          600,
+          isSecure(request),
+        ),
+      },
+    });
   }
 
   const redirectUri = new URL("/auth/callback", url.origin).toString();
@@ -298,17 +377,22 @@ export async function handleCallback(
     )
     .run();
 
-  return new Response(null, {
-    status: 302,
-    headers: {
-      location: pkce.returnTo || "/",
-      "set-cookie": [
-        cookie(SESSION_COOKIE, sessionId, SESSION_TTL_SECONDS, isSecure(request)),
-        // Clear the PKCE cookie; it is single-use.
-        cookie(PKCE_COOKIE, "", 0, isSecure(request)),
-      ].join(", "),
-    },
-  });
+  // Set-Cookie must be sent as separate headers, never comma-joined the way
+  // other repeated headers can be: cookie attributes contain commas (Expires
+  // dates especially), so a joined value parses as one malformed cookie and
+  // the browser silently drops it. `Headers.append` emits one header each.
+  const headers = new Headers({ location: pkce.returnTo || "/" });
+  headers.append(
+    "set-cookie",
+    cookie(SESSION_COOKIE, sessionId, SESSION_TTL_SECONDS, isSecure(request)),
+  );
+  // Clear the PKCE cookie; it is single-use.
+  headers.append(
+    "set-cookie",
+    cookie(PKCE_COOKIE, "", 0, isSecure(request)),
+  );
+
+  return new Response(null, { status: 302, headers });
 }
 
 /** Resolve the signed-in user, if any. */
@@ -345,6 +429,19 @@ export async function getSessionUser(
     displayName: row.display_name,
     avatarUrl: row.avatar_url,
   };
+}
+
+/**
+ * Delete expired sessions.
+ *
+ * `getSessionUser` only clears a row when that user returns, so sessions for
+ * people who never come back would sit there indefinitely — holding a name and
+ * avatar URL past any purpose. Called opportunistically on sign-in.
+ */
+export async function purgeExpiredSessions(env: Env): Promise<void> {
+  await env.DB.prepare(`DELETE FROM sessions WHERE expires_at <= ?`)
+    .bind(Math.floor(Date.now() / 1000))
+    .run();
 }
 
 export async function signOut(request: Request, env: Env): Promise<Response> {

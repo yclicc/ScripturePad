@@ -8,7 +8,14 @@ import type { EditorView } from "prosemirror-view";
  * the link immediately.
  */
 
-export type SaveState = "clean" | "dirty" | "saving" | "saved" | "error";
+export type SaveState =
+  | "clean"
+  | "dirty"
+  | "saving"
+  | "saved"
+  | "error"
+  /** Signed out: the button routes to sign-in rather than attempting a save. */
+  | "signin-required";
 
 interface SaveOptions {
   view: EditorView;

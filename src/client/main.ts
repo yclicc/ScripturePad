@@ -42,12 +42,15 @@ function shell(): {
   page: HTMLDivElement;
   colophon: HTMLDivElement;
   actions: HTMLDivElement;
+  /** Left of the toolbar, where the notes panel slides out from. */
+  lead: HTMLDivElement;
 } {
   const el = document.createElement("div");
   el.className = "shell";
   el.innerHTML = `
     <header class="toolbar">
       <a class="toolbar__brand" href="/">ScripturePad</a>
+      <div class="toolbar__lead"></div>
       <div class="toolbar__actions"></div>
     </header>
     <main class="surface">
@@ -61,6 +64,7 @@ function shell(): {
     page: el.querySelector<HTMLDivElement>(".page")!,
     colophon: el.querySelector<HTMLDivElement>(".colophon")!,
     actions: el.querySelector<HTMLDivElement>(".toolbar__actions")!,
+    lead: el.querySelector<HTMLDivElement>(".toolbar__lead")!,
   };
 }
 
@@ -121,6 +125,27 @@ function mountAccount(container: HTMLElement, me: Me): void {
   container.append(signIn);
 }
 
+/**
+ * The notes button, placed at the left of the toolbar so it sits where the
+ * panel slides out from rather than across the page in the action cluster.
+ */
+async function mountNotesButton(
+  container: HTMLElement,
+  currentId: string | null,
+): Promise<void> {
+  const { createNotesPanel } = await import("./notes-list.ts");
+  const panel = createNotesPanel(navigator.language, currentId);
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "toolbar__button toolbar__button--notes";
+  button.setAttribute("aria-label", "Your notes");
+  // A list glyph, so the control reads as "open a list" at a glance.
+  button.innerHTML = `<span aria-hidden="true">☰</span> Notes`;
+  button.addEventListener("click", () => panel.toggle());
+  container.append(button);
+}
+
 async function main(): Promise<void> {
   const { id, editing } = route();
   const [existing, me] = await Promise.all([
@@ -140,7 +165,7 @@ async function main(): Promise<void> {
   // own explicit choice wins once made.
   let versionId = resolveVersionId(lang, existing?.versionId ?? null);
 
-  const { page, colophon, actions } = shell();
+  const { page, colophon, actions, lead } = shell();
   mountColophon(colophon);
 
   // Machine translation skips contenteditable, so reading uses plain DOM and
@@ -187,6 +212,8 @@ async function main(): Promise<void> {
       actions.append(edit);
     }
 
+    if (me.signedIn) await mountNotesButton(lead, existing.id);
+
     mountAccount(actions, me);
     return;
   }
@@ -213,7 +240,17 @@ async function main(): Promise<void> {
       setPreferredVersion(lang, next);
     },
     language: lang,
-    onSave: () => void saver.save(),
+    onSave: () => {
+      // Saving needs an owner, so send the user to sign in rather than letting
+      // the request fail with a 401 they cannot act on.
+      if (!me.signedIn) {
+        window.location.href = `/auth/signin?return_to=${encodeURIComponent(
+          window.location.pathname,
+        )}`;
+        return;
+      }
+      void saver.save();
+    },
   });
 
   saver = new DocumentSaver({
@@ -224,23 +261,31 @@ async function main(): Promise<void> {
     onStateChange: (state, message) => toolbar.setSaveState(state, message),
   });
 
+  // Somewhere to find previously saved notes. A panel rather than a page, so
+  // opening it mid-edit does not lose the author's place.
+  if (me.signedIn) await mountNotesButton(lead, existing?.id ?? null);
+
   mountAccount(actions, me);
 
   // Ownership is what makes a document editable later, so saving requires an
   // account. Say so up front rather than failing at the moment of saving.
+  // The button stays enabled when signed out — it routes to sign-in — so the
+  // prompt is actionable rather than a dead end.
   toolbar.setSaveState(
-    "clean",
+    me.signedIn ? "clean" : "signin-required",
     me.signedIn ? undefined : "Sign in to save your notes",
   );
-
-  if (!me.signedIn) {
-    toolbar.setSaveState("error", "Sign in to save your notes");
-  }
 
   // Ctrl/Cmd+S is what people reach for; intercept the browser's Save Page.
   window.addEventListener("keydown", (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key === "s") {
       event.preventDefault();
+      if (!me.signedIn) {
+        window.location.href = `/auth/signin?return_to=${encodeURIComponent(
+          window.location.pathname,
+        )}`;
+        return;
+      }
       void saver.save();
     }
   });

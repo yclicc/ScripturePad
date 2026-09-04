@@ -146,6 +146,9 @@ export function createToolbar(
 
   return {
     setSaveState(state, message) {
+      // The signed-out state relabels the button, so restore it otherwise.
+      if (state !== "signin-required") saveButton.textContent = "Save";
+
       switch (state) {
         case "clean":
           status.textContent = "";
@@ -170,6 +173,13 @@ export function createToolbar(
           status.textContent = message ?? "Could not save";
           status.className = "toolbar__status toolbar__status--error";
           saveButton.disabled = false;
+          break;
+        case "signin-required":
+          status.textContent = message ?? "Sign in to save";
+          status.className = "toolbar__status";
+          // Enabled on purpose: clicking it starts sign-in.
+          saveButton.disabled = false;
+          saveButton.textContent = "Sign in to save";
           break;
       }
     },
