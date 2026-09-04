@@ -333,14 +333,24 @@ The toolchain is being established as part of the rewrite. Expected shape
 
 ```bash
 npm install
-npm run dev        # local dev via wrangler/vite
+npm run dev        # http://localhost:8787 — Worker runs from source, hot reload
+npm test
 npm run build
-npm run deploy     # wrangler deploy
+npm run deploy     # build, then wrangler deploy
 npm run lint
 npm run format
 ```
 
-Update this section once `package.json` actually exists.
+**Use `npm run dev`, not `wrangler dev` directly.** `wrangler dev` serves the
+built bundle in `dist/`, so worker edits appear to do nothing until a rebuild —
+a confusing failure that looks like broken code. `vite dev` runs the Worker
+from source instead.
+
+The port is pinned to **8787** in two places, `vite.config.ts` (`server.port`,
+with `strictPort`) and `wrangler.jsonc` (`dev.port`). Vite defaults to 5173 and
+does not inherit the wrangler setting. The port must stay fixed because it is
+half of the OAuth callback URL registered with YouVersion; a moving port breaks
+sign-in.
 
 ## Code Style
 

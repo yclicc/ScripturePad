@@ -191,6 +191,24 @@ export async function handleCallback(
   const code = url.searchParams.get("code");
   const returnedState = url.searchParams.get("state");
 
+  // The provider reports its own failures here — most usefully
+  // `redirect_uri_mismatch`, which means the callback registered in the
+  // platform portal does not match what we sent, character for character.
+  const oauthError = url.searchParams.get("error");
+  if (oauthError) {
+    const description =
+      url.searchParams.get("error_description") ?? "no description given";
+    console.error("oauth error", { error: oauthError, description });
+    return new Response(
+      `Sign-in failed: ${oauthError}\n\n${description}\n\n` +
+        `We requested this callback URL:\n  ` +
+        `${new URL("/auth/callback", url.origin).toString()}\n\n` +
+        `It must match the Callback URI registered at ` +
+        `platform.youversion.com exactly.`,
+      { status: 400, headers: { "content-type": "text/plain" } },
+    );
+  }
+
   const raw = readCookie(request, PKCE_COOKIE);
   if (!raw) return new Response("Sign-in expired. Please try again.", { status: 400 });
 
@@ -225,8 +243,16 @@ export async function handleCallback(
     }),
   });
   if (!tokenResponse.ok) {
-    console.error("token exchange failed", tokenResponse.status);
-    return new Response("Could not complete sign-in.", { status: 502 });
+    // Surface the provider's reason rather than a generic failure: a
+    // mismatched redirect_uri or client_id shows up here, and the response
+    // body names which.
+    const detail = await tokenResponse.text().catch(() => "");
+    console.error("token exchange failed", tokenResponse.status, detail);
+    return new Response(
+      `Could not complete sign-in (HTTP ${tokenResponse.status}).\n\n` +
+        `${detail}\n\nredirect_uri sent: ${redirectUri}`,
+      { status: 502, headers: { "content-type": "text/plain" } },
+    );
   }
 
   const tokens = (await tokenResponse.json()) as TokenResponse;
