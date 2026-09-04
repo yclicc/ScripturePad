@@ -411,6 +411,19 @@ The authorize request must include `nonce` alongside `state`: `state` defends
 against CSRF, `nonce` against replay, and the id token echoes the nonce back
 for checking.
 
+**`run_worker_first` is required for `/auth/*` and `/api/*`.** With
+`not_found_handling: "single-page-application"`, Cloudflare's asset layer
+answers browser *navigations* with `index.html` before the Worker runs, so
+`/auth/signin` rendered the SPA's "no document at this address" page instead of
+redirecting. The trap is that it only reproduces with browser headers —
+`curl` without `Sec-Fetch-Mode: navigate` still sees the correct 302, so the
+routes look fine from the command line. Reproduce it with:
+
+```bash
+curl -sID - -H 'Sec-Fetch-Mode: navigate' -H 'Accept: text/html' \
+  http://localhost:8787/auth/signin
+```
+
 ## Secrets
 
 Never commit secrets. Local values go in `.dev.vars` (gitignored); deployed

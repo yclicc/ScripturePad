@@ -8,7 +8,14 @@
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+
+    // Without this, the asset layer answers every browser *navigation* with
+    // index.html before the Worker runs — so /auth/signin rendered the SPA
+    // (and its "no document at this address" page) instead of redirecting.
+    // It only reproduces with browser headers: curl still saw the 302, which
+    // makes it easy to misdiagnose.
+    "run_worker_first": ["/auth/*", "/api/*"]
   },
 
   "observability": {
