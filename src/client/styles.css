@@ -247,6 +247,90 @@ body {
   margin: 0;
 }
 
+/* Translate invitation --------------------------------------------------- */
+
+.translate-hint__wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.translate-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: var(--radius);
+  padding: 0.3125rem 0.625rem;
+  cursor: pointer;
+}
+
+.translate-hint:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.translate-hint__icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* Once translated the nudge has done its job; keep the control, drop the
+   emphasis. */
+.is-translated .translate-hint {
+  color: var(--ink-muted);
+  background: transparent;
+  border-color: var(--line);
+}
+
+.translate-hint__panel {
+  /* Fixed and clamped from JS, for the same reason as the scripture popover:
+     an absolutely positioned panel anchored to a control near the edge runs
+     off the screen on a phone. */
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 40;
+  width: min(20rem, calc(100vw - 2rem));
+  padding: 0.875rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.translate-hint__panel p {
+  margin: 0;
+}
+
+.translate-hint__panel p + p {
+  margin-top: 0.5rem;
+}
+
+.translate-hint__lead {
+  font-weight: 600;
+}
+
+.translate-hint__how {
+  color: var(--ink-muted);
+}
+
+.translate-hint__note {
+  color: var(--ink-muted);
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+}
+
+@media print {
+  .translate-hint__wrapper {
+    display: none;
+  }
+}
+
 /* Share / QR ------------------------------------------------------------- */
 
 .share {
@@ -864,10 +948,16 @@ body {
 }
 
 .scripture--popover .scripture__text {
-  position: absolute;
-  bottom: calc(100% + 0.5rem);
-  inset-inline-start: 0;
-  z-index: 20;
+  /*
+   * Fixed, with `left`/`top` set from JS. The reference is inline, so when it
+   * wraps its box fragments and an absolutely positioned child anchors to an
+   * arbitrary fragment — which is how the panel ended up off-screen. Measuring
+   * against the viewport also escapes any clipping ancestor.
+   */
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 30;
   /* A fixed width rather than max-content: sizing to the longest line made a
      whole psalm stretch far past the page. */
   width: min(24rem, 90vw);

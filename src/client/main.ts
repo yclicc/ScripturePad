@@ -12,6 +12,7 @@ import {
 } from "./language.ts";
 import { createVersionPicker } from "./version-picker.ts";
 import { attachPopoverBehaviour } from "./popover.ts";
+import { mountTranslateHint } from "./translate-hint.ts";
 import "./styles.css";
 
 interface DocumentResponse {
@@ -232,6 +233,9 @@ async function main(): Promise<void> {
     // page, not the editor.
     const { mountQrCode } = await import("./qr.ts");
     mountQrCode(share, window.location.href);
+    // Reader view only: the invitation is for the congregation, not the author.
+    mountTranslateHint(lead);
+
     const picker = createVersionPicker(actions, {
       initialLanguage: lang,
       initialVersionId: versionId,
