@@ -1,5 +1,15 @@
 .vscode
+
+# Secrets
 .env
+.dev.vars
+
+# Node / Cloudflare
+node_modules/
+dist/
+.wrangler/
+
+# Legacy Bible Brain data (see CLAUDE.md)
 bibles.json
 bibles_text.json
 completebibles.json
