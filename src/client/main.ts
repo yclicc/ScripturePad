@@ -11,6 +11,7 @@ import {
   watchPageLanguage,
 } from "./language.ts";
 import { createVersionPicker } from "./version-picker.ts";
+import { attachPopoverBehaviour } from "./popover.ts";
 import "./styles.css";
 
 interface DocumentResponse {
@@ -44,6 +45,8 @@ function shell(): {
   actions: HTMLDivElement;
   /** Left of the toolbar, where the notes panel slides out from. */
   lead: HTMLDivElement;
+  /** Below the note, for the QR code and share actions. */
+  share: HTMLDivElement;
 } {
   const el = document.createElement("div");
   el.className = "shell";
@@ -61,6 +64,7 @@ function shell(): {
     </header>
     <main class="surface">
       <article class="page"></article>
+      <aside class="share"></aside>
       <aside class="colophon" hidden></aside>
     </main>
     <footer class="site-footer">
@@ -95,6 +99,7 @@ function shell(): {
     colophon: el.querySelector<HTMLDivElement>(".colophon")!,
     actions: el.querySelector<HTMLDivElement>(".toolbar__actions")!,
     lead: el.querySelector<HTMLDivElement>(".toolbar__lead")!,
+    share: el.querySelector<HTMLDivElement>(".share")!,
   };
 }
 
@@ -205,8 +210,11 @@ async function main(): Promise<void> {
   // own explicit choice wins once made.
   let versionId = resolveVersionId(lang, existing?.versionId ?? null);
 
-  const { page, colophon, actions, lead } = shell();
+  const { page, colophon, actions, lead, share } = shell();
   mountColophon(colophon);
+
+  // Delegated, so it covers citations added after mount in either view.
+  attachPopoverBehaviour(page);
 
   // Machine translation skips contenteditable, so reading uses plain DOM and
   // ProseMirror is loaded only to edit. This also keeps the editor bundle off
@@ -218,6 +226,12 @@ async function main(): Promise<void> {
     document.documentElement.lang = existing.sourceLang;
 
     const rerender = renderDocument(page, existing.content as never, versionId);
+
+    // A QR code for this page, so a congregation can reach the notes from a
+    // projected slide or handout. Reader view only — it points at the shared
+    // page, not the editor.
+    const { mountQrCode } = await import("./qr.ts");
+    mountQrCode(share, window.location.href);
     const picker = createVersionPicker(actions, {
       initialLanguage: lang,
       initialVersionId: versionId,
@@ -294,6 +308,17 @@ async function main(): Promise<void> {
     editable: true,
     getVersionId: () => versionId,
     onChange: () => saver?.markDirty(),
+    // Only on a blank document: an existing note needs no instructions.
+    placeholder: existing
+      ? undefined
+      : me.signedIn
+        ? "Enter or paste your sermon notes here. They will be viewable by " +
+          "anyone with the link, and machine translatable — but the Bible " +
+          "will be shown in published translations made by human experts."
+        : "Sign in with YouVersion using the button in the top right, then " +
+          "enter or paste your sermon notes here. They will be viewable by " +
+          "anyone with the link, and machine translatable — but the Bible " +
+          "will be shown in published translations made by human experts.",
   });
 
   const toolbar = createToolbar(actions, view, {

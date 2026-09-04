@@ -1,5 +1,5 @@
-import { EditorState } from "prosemirror-state";
-import { EditorView } from "prosemirror-view";
+import { EditorState, Plugin } from "prosemirror-state";
+import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
 import { DOMParser as PMDOMParser } from "prosemirror-model";
 import {
   baseKeymap,
@@ -69,16 +69,48 @@ const orderedRule = wrappingInputRule(
   (match) => ({ order: Number(match[1]) }),
 );
 
+/**
+ * Shows guidance in an empty document.
+ *
+ * A decoration rather than real content, so it is never part of the document
+ * and can never be saved or translated as if the author had written it.
+ */
+function placeholderPlugin(text: string): Plugin {
+  return new Plugin({
+    props: {
+      decorations(state) {
+        const { doc } = state;
+        const isEmpty =
+          doc.childCount === 1 &&
+          doc.firstChild?.isTextblock &&
+          doc.firstChild.content.size === 0;
+
+        if (!isEmpty) return null;
+
+        return DecorationSet.create(doc, [
+          Decoration.node(0, doc.firstChild!.nodeSize, {
+            class: "is-empty",
+            "data-placeholder": text,
+          }),
+        ]);
+      },
+    },
+  });
+}
+
 export interface EditorOptions {
   mount: HTMLElement;
   initialContent?: unknown;
   editable?: boolean;
   getVersionId: () => number;
   onChange?: () => void;
+  /** Guidance shown while the document is empty. */
+  placeholder?: string;
 }
 
 export function createEditor(options: EditorOptions): EditorView {
   const { mount, initialContent, editable = true, getVersionId } = options;
+  const { placeholder } = options;
 
   const doc = initialContent
     ? schema.nodeFromJSON(initialContent)
@@ -131,6 +163,7 @@ export function createEditor(options: EditorOptions): EditorView {
           ...smartQuotes,
         ],
       }),
+      ...(placeholder ? [placeholderPlugin(placeholder)] : []),
       scriptureDetectPlugin({
         onCandidates: (candidates, view) => {
           // Offer the reference nearest the cursor, so the popup follows the
@@ -146,6 +179,9 @@ export function createEditor(options: EditorOptions): EditorView {
           if (nearest) prompt.show(view, nearest);
           else prompt.hide();
         },
+        // Any underlined reference can be cited by clicking it, not just the
+        // one nearest the cursor.
+        onPick: (candidate, view) => prompt.show(view, candidate),
       }),
     ],
   });

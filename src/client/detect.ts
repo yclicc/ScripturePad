@@ -47,23 +47,40 @@ function scanDocument(state: EditorState, dismissed: Set<string>): Candidate[] {
   state.doc.descendants((node, pos) => {
     if (!node.isTextblock) return true;
 
-    // Skip blocks that already contain a citation, so an inserted scripture
-    // node's own label is never re-detected.
-    let hasScripture = false;
-    node.forEach((child) => {
-      if (child.type.name.startsWith("scripture")) hasScripture = true;
-    });
-    if (hasScripture) return false;
+    // The block's text is scanned as a whole — a reference may be split across
+    // formatting marks ("**Romans** 8:28" is two text nodes) — but offsets are
+    // mapped back through a table built from the children, because:
+    //
+    //  - A paragraph may hold several citations, so the block cannot simply be
+    //    skipped once it contains one.
+    //  - Atom nodes occupy a position while contributing no text, so an inline
+    //    citation earlier in the paragraph shifts every later position. Naive
+    //    `textContent` offsets would replace the wrong span.
+    let text = "";
+    /** For each character of `text`, its position in the document. */
+    const positions: number[] = [];
 
-    for (const found of findReferences(node.textContent)) {
-      // +1 moves past the textblock's opening token to its text content.
-      const from = pos + 1 + found.start;
-      const to = pos + 1 + found.end;
+    node.forEach((child, offset) => {
+      const base = pos + 1 + offset;
+      if (child.isText && child.text) {
+        for (let i = 0; i < child.text.length; i++) positions.push(base + i);
+        text += child.text;
+      }
+      // Atoms contribute no characters, so nothing is recorded for them and
+      // the following run's positions pick up after their nodeSize.
+    });
+
+    for (const found of findReferences(text)) {
+      const from = positions[found.start];
+      // `end` is exclusive: take the last character's position and step past it.
+      const lastCharPos = positions[found.end - 1];
+      if (from === undefined || lastCharPos === undefined) continue;
+
       const candidate = {
         reference: found.reference,
         from,
-        to,
-        text: node.textContent.slice(found.start, found.end),
+        to: lastCharPos + 1,
+        text: text.slice(found.start, found.end),
       };
       if (!dismissed.has(candidateId(candidate))) candidates.push(candidate);
     }
@@ -85,6 +102,17 @@ function buildDecorations(candidates: Candidate[]): Decoration[] {
 export interface DetectOptions {
   /** Called when the set of detected references changes. */
   onCandidates: (candidates: Candidate[], view: EditorView) => void;
+  /** Called when the author clicks a detected reference. */
+  onPick?: (candidate: Candidate, view: EditorView) => void;
+}
+
+/** The detected reference covering a document position, if any. */
+export function candidateAt(
+  state: EditorState,
+  pos: number,
+): Candidate | null {
+  const found = detectKey.getState(state)?.candidates ?? [];
+  return found.find((c) => pos >= c.from && pos <= c.to) ?? null;
 }
 
 export function scriptureDetectPlugin(options: DetectOptions): Plugin {
@@ -133,6 +161,21 @@ export function scriptureDetectPlugin(options: DetectOptions): Plugin {
     props: {
       decorations(state) {
         return detectKey.getState(state)?.decorations;
+      },
+
+      /**
+       * Clicking an underlined reference offers it.
+       *
+       * Without this, only the candidate nearest the cursor was ever offered,
+       * and the prompt only reappeared when the set of candidates changed — so
+       * any other detected reference was underlined but impossible to act on.
+       */
+      handleClick(view, pos) {
+        const candidate = candidateAt(view.state, pos);
+        if (!candidate) return false;
+        options.onPick?.(candidate, view);
+        // Let the click through so the caret still lands where it was aimed.
+        return false;
       },
     },
 

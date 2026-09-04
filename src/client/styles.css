@@ -33,6 +33,11 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Nothing should ever scroll the page sideways on a phone. */
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -71,7 +76,11 @@ body {
   z-index: 10;
   display: flex;
   align-items: center;
-  gap: 1rem;
+  /* Wraps rather than overflowing: the toolbar carries brand, notes, new,
+     formatting, a version picker, save, and the account control, which is far
+     more than fits across a phone. */
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
   padding: 0.625rem 1.25rem;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
@@ -236,6 +245,87 @@ body {
   align-items: center;
   gap: 0.5rem;
   margin: 0;
+}
+
+/* Share / QR ------------------------------------------------------------- */
+
+.share {
+  display: block;
+  max-width: var(--page-width);
+  margin: 1.5rem auto 0;
+  padding-inline: 4rem;
+}
+
+.qr {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.qr__heading {
+  /* The heading labels the block for screen readers; the code speaks for
+     itself visually. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.qr__image {
+  display: block;
+  width: 6rem;
+  height: 6rem;
+  /* White backing so the code stays scannable in dark mode. */
+  background: #fff;
+  border-radius: calc(var(--radius) - 4px);
+  flex-shrink: 0;
+}
+
+.qr__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.qr__button {
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.375rem 0.625rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.qr__button:hover {
+  background: var(--bg);
+}
+
+@media (max-width: 40rem) {
+  .share {
+    padding-inline: 1.25rem;
+  }
+
+  .qr {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media print {
+  /* Not printed: the QR block is a screen-side sharing aid, and it would
+     otherwise take a sizeable bite out of the page. */
+  .share {
+    display: none;
+  }
 }
 
 /* Site footer ------------------------------------------------------------ */
@@ -521,6 +611,44 @@ body {
     box-shadow: none;
     padding: 1.5rem 1.25rem;
   }
+
+  .toolbar {
+    padding: 0.5rem 0.75rem;
+    gap: 0.375rem 0.5rem;
+  }
+
+  /* The account control takes the full second row so the name has room and
+     the buttons above it stay reachable with a thumb. */
+  .toolbar__actions {
+    width: 100%;
+    margin-inline-start: 0;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+
+  .toolbar__group + .toolbar__group {
+    padding-inline-start: 0.375rem;
+  }
+
+  .toolbar__button {
+    padding: 0.375rem 0.5rem;
+  }
+
+  /* A long version name would otherwise force the row wider than the screen. */
+  .version-picker {
+    max-width: 100%;
+    min-width: 0;
+    flex: 1 1 8rem;
+  }
+
+  .account__name {
+    max-width: 100%;
+  }
+
+  /* Anchored to the brand, which sits at the edge on a narrow screen. */
+  .tagline {
+    max-width: calc(100vw - 1.5rem);
+  }
 }
 
 /* Editor ----------------------------------------------------------------- */
@@ -569,13 +697,18 @@ body {
   padding-inline-start: 1.5rem;
 }
 
-/* Placeholder for an empty document. */
-.ProseMirror p.is-empty:first-child::before {
+/*
+ * Placeholder for an empty document. The class lands on the paragraph itself
+ * (a node decoration), so no `:first-child` qualifier is needed.
+ */
+.ProseMirror .is-empty::before {
   content: attr(data-placeholder);
+  display: block;
   color: var(--ink-muted);
   pointer-events: none;
   height: 0;
-  float: inline-start;
+  max-width: 34rem;
+  line-height: 1.6;
 }
 
 /* Scripture -------------------------------------------------------------- */
@@ -595,21 +728,31 @@ body {
   display: inline;
 }
 
-.scripture--block .verse {
+/*
+ * Verses are laid out line-per-line in both the block and popover styles.
+ * Scoping these to `--block` alone left popovers running every line together
+ * with no spacing, so a psalm arrived as one unreadable paragraph with words
+ * colliding at each line join.
+ */
+.scripture--block .verse,
+.scripture--popover .verse {
   display: block;
 }
 
-.scripture--block .verse--indent-1 {
+.scripture--block .verse--indent-1,
+.scripture--popover .verse--indent-1 {
   padding-inline-start: 1.25rem;
   text-indent: -1.25rem;
 }
 
-.scripture--block .verse--indent-2 {
+.scripture--block .verse--indent-2,
+.scripture--popover .verse--indent-2 {
   padding-inline-start: 2.5rem;
   text-indent: -1.25rem;
 }
 
-.scripture--block .verse--indent-3 {
+.scripture--block .verse--indent-3,
+.scripture--popover .verse--indent-3 {
   padding-inline-start: 3.75rem;
   text-indent: -1.25rem;
 }
@@ -725,8 +868,13 @@ body {
   bottom: calc(100% + 0.5rem);
   inset-inline-start: 0;
   z-index: 20;
-  width: max-content;
-  max-width: min(22rem, 90vw);
+  /* A fixed width rather than max-content: sizing to the longest line made a
+     whole psalm stretch far past the page. */
+  width: min(24rem, 90vw);
+  /* Capped and scrollable, so Psalm 1 does not fill the screen. */
+  max-height: 16rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0.75rem 0.875rem;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -739,7 +887,19 @@ body {
   transition: opacity 120ms ease;
 }
 
-.scripture--popover:hover .scripture__text,
+/* Space between verses, which run together without it. */
+.scripture--popover .verse + .verse {
+  margin-top: 0.15em;
+}
+
+
+/*
+ * `is-showing` is set from JS with a short close delay, so the popover
+ * survives the moment the pointer spends between the reference and the panel.
+ * Pure :hover closed it in that gap, which made a scrollable popover
+ * practically unreachable with a mouse.
+ */
+.scripture--popover.is-showing .scripture__text,
 .scripture--popover:focus-visible .scripture__text,
 .scripture--popover:focus-within .scripture__text {
   opacity: 1;
@@ -761,9 +921,17 @@ body {
   outline: 2px solid var(--accent);
 }
 
-/* A detected but not-yet-cited reference. */
+/*
+ * A detected but not-yet-cited reference. Clickable — the prompt only ever
+ * offers one candidate automatically, so this is how the others are reached.
+ */
 .scripture-detected {
   border-bottom: 2px dotted color-mix(in srgb, var(--accent) 55%, transparent);
+  cursor: pointer;
+}
+
+.scripture-detected:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 /* Suggestion popup ------------------------------------------------------- */
@@ -921,8 +1089,19 @@ body {
 /* Print ------------------------------------------------------------------ */
 
 @media print {
+  /*
+   * Screen sizing wastes paper. 10.5pt with tighter leading keeps a sermon's
+   * worth of notes to far fewer sheets while staying comfortably readable.
+   */
   body {
     background: #fff;
+    color: #000;
+    font-size: 10.5pt;
+    line-height: 1.4;
+  }
+
+  @page {
+    margin: 1.5cm;
   }
 
   .toolbar,
@@ -938,25 +1117,65 @@ body {
     max-width: none;
   }
 
-  /*
-   * A hover popover is useless on paper, so print the verse inline. The text
-   * is always in the DOM precisely so this works.
-   */
-  .scripture--popover .scripture__text {
-    position: static;
-    opacity: 1;
-    visibility: visible;
-    display: inline;
-    width: auto;
-    max-width: none;
-    padding: 0;
-    border: 0;
-    box-shadow: none;
-    font-style: italic;
+  .page > * + * {
+    margin-top: 0.5em;
   }
 
-  .scripture--popover .scripture__text::before {
-    content: " — ";
+  .page h1 {
+    font-size: 15pt;
+    margin-top: 0;
+  }
+
+  .page h2 {
+    font-size: 12.5pt;
+    margin-top: 1em;
+  }
+
+  .page h3 {
+    font-size: 11pt;
+    margin-top: 0.8em;
+  }
+
+  .scripture--block {
+    padding: 0.4em 0.6em;
+    margin-block: 0.5em;
+    background: none;
+    border-inline-start: 2pt solid #999;
+    /* Keep a quotation whole rather than split across a page break. */
+    break-inside: avoid;
+  }
+
+  .scripture--block .scripture__text {
+    line-height: 1.35;
+  }
+
+  .verse__number {
+    font-size: 0.7em;
+  }
+
+  .page h1,
+  .page h2,
+  .page h3 {
+    break-after: avoid;
+  }
+
+  .colophon {
+    font-size: 7.5pt;
+    margin-top: 1em;
+    padding-top: 0.5em;
+  }
+
+  /*
+   * A popover citation prints as its reference only. Expanding every one into
+   * full text bloats a handout — the author chose the popover style precisely
+   * to keep that passage out of the running text.
+   */
+  .scripture--popover .scripture__text {
+    display: none;
+  }
+
+  .scripture--popover .scripture__ref {
+    border-bottom: 0;
   }
 
   .scripture-detected {
