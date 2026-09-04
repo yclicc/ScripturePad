@@ -236,6 +236,78 @@ app.route("/api", api);
 
 // Anything not handled above is a client-side route; the SPA fallback in
 // wrangler.jsonc serves index.html.
+/** Escape text destined for an HTML attribute. */
+function escapeAttribute(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Serve a document page with its title in the HTML.
+ *
+ * Link previews (WhatsApp, Slack, Discord, Facebook) fetch the page and never
+ * run JavaScript, so setting `document.title` client-side leaves every shared
+ * link showing a generic card. The tags have to be in the served markup.
+ *
+ * The Worker already runs on this route and the reader already loads the
+ * document, so this adds no request the site was not making anyway.
+ */
+async function documentPage(
+  c: { env: Env; req: { raw: Request } },
+  id: string,
+): Promise<Response | null> {
+  const doc = await getDocument(c.env, id).catch(() => null);
+  if (!doc) return null;
+
+  const asset = await c.env.ASSETS.fetch(c.req.raw);
+  if (!asset.ok) return asset;
+
+  const title = doc.title.trim() || "Untitled note";
+  const url = new URL(c.req.raw.url);
+  const pageUrl = `${url.origin}/${doc.id}`;
+  const description =
+    "Sermon notes on ScripturePad — readable in your language, with " +
+    "scripture shown in a published Bible translation.";
+
+  return new HTMLRewriter()
+    .on("title", {
+      element(element) {
+        element.setInnerContent(`${title} — ScripturePad`);
+      },
+    })
+    .on("head", {
+      element(element) {
+        const safeTitle = escapeAttribute(title);
+        const safeDescription = escapeAttribute(description);
+        element.append(
+          `<meta property="og:title" content="${safeTitle}">` +
+            `<meta property="og:description" content="${safeDescription}">` +
+            `<meta property="og:type" content="article">` +
+            `<meta property="og:url" content="${escapeAttribute(pageUrl)}">` +
+            `<meta property="og:site_name" content="ScripturePad">` +
+            `<meta name="twitter:card" content="summary">` +
+            `<meta name="twitter:title" content="${safeTitle}">` +
+            `<meta name="twitter:description" content="${safeDescription}">` +
+            `<meta name="description" content="${safeDescription}">`,
+          { html: true },
+        );
+      },
+    })
+    .transform(asset);
+}
+
+// Document pages get their title injected; everything else is served as-is.
+app.get("/:id", async (c) => {
+  const id = c.req.param("id");
+  // Only slug-shaped paths are documents; assets and files are not.
+  if (!/^[a-z0-9]{4,16}$/.test(id)) return c.env.ASSETS.fetch(c.req.raw);
+
+  return (await documentPage(c, id)) ?? c.env.ASSETS.fetch(c.req.raw);
+});
+
 app.get("*", (c) => c.env.ASSETS.fetch(c.req.raw));
 
 export default app;
