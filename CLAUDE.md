@@ -367,21 +367,20 @@ and are never committed.
 Domains) and still resolves via `ns-cloud-*.googledomains.com`. A Worker cannot
 serve a custom domain until Cloudflare is authoritative for the zone:
 
-1. Cloudflare dashboard → **Add a site** → `scripturepad.org` (Free plan is
-   enough), and let it import the existing DNS records.
-2. Squarespace → **Domains → DNS → Nameservers** → replace the Google ones with
+1. Cloudflare dashboard → **Add a domain** (older docs and the CLI still call
+   this "add a site") → `scripturepad.org`. Choose the **Free** plan, which is
+   below the paid tiers in the list, and let it scan the existing records.
+2. Delete the two stale records it imports. Both are dead Deno Deploy
+   endpoints — the apex `A 34.120.54.55` and `AAAA 2600:1901:0:6d85::` still
+   answer with `server: deno/gcp-us-west4` and a 404.
+3. Squarespace → **Domains → DNS → Nameservers** → replace the Google ones with
    the two Cloudflare gives you. Propagation is usually under an hour.
-3. Once the zone is active, add the route to `wrangler.jsonc`:
+4. Once the zone is active, uncomment the `routes` block in `wrangler.jsonc`
+   and `npm run deploy`.
 
-   ```jsonc
-   "routes": [
-     { "pattern": "scripturepad.org/*", "zone_name": "scripturepad.org" },
-     { "pattern": "www.scripturepad.org/*", "zone_name": "scripturepad.org" }
-   ]
-   ```
-
-Check the existing A record (`34.120.54.55`) first — if a current site is
-served from it, keep that record until the cutover is intended.
+The zone is currently clean: no MX, TXT, CNAME, or subdomain records, so
+nothing else breaks in the move. Anything added later (email, domain
+verification) must go in Cloudflare, not Google.
 
 ### OAuth registration
 

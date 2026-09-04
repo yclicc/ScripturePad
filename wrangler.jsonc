@@ -15,6 +15,15 @@
     "enabled": true
   },
 
+  // Uncomment once scripturepad.org is active in Cloudflare (its nameservers
+  // must point at Cloudflare first — see CLAUDE.md "Deployment"). Deploying
+  // with these set before the zone exists fails, which is why they start
+  // commented rather than active.
+  // "routes": [
+  //   { "pattern": "scripturepad.org/*", "zone_name": "scripturepad.org" },
+  //   { "pattern": "www.scripturepad.org/*", "zone_name": "scripturepad.org" }
+  // ],
+
   // D1 holds documents and ownership. Create with:
   //   npx wrangler d1 create scripturepad
   // then paste the returned database_id below.
