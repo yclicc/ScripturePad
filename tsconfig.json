@@ -19,6 +19,8 @@
     "noEmit": true,
     "jsx": "preserve"
   },
-  "include": ["src", "*.ts", "*.config.ts"],
-  "exclude": ["node_modules", "dist", ".wrangler"]
+  // src/client is typechecked separately against DOM-only libs; see
+  // src/client/tsconfig.json.
+  "include": ["src/worker", "src/shared", "*.ts", "*.config.ts"],
+  "exclude": ["node_modules", "dist", ".wrangler", "src/client"]
 }

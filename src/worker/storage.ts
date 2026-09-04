@@ -7,6 +7,8 @@ export interface DocumentRecord {
   /** ProseMirror document JSON, serialised. */
   content: string;
   sourceLang: string;
+  /** Version the document was authored against; readers inherit it. */
+  versionId: number | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -17,9 +19,13 @@ interface DocumentRow {
   title: string;
   content: string;
   source_lang: string;
+  version_id: number | null;
   created_at: number;
   updated_at: number;
 }
+
+const DOCUMENT_COLUMNS = `id, owner_id, title, content, source_lang,
+                          version_id, created_at, updated_at`;
 
 function toRecord(row: DocumentRow): DocumentRecord {
   return {
@@ -28,6 +34,7 @@ function toRecord(row: DocumentRow): DocumentRecord {
     title: row.title,
     content: row.content,
     sourceLang: row.source_lang,
+    versionId: row.version_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -53,8 +60,7 @@ export async function getDocument(
   id: string,
 ): Promise<DocumentRecord | null> {
   const row = await env.DB.prepare(
-    `SELECT id, owner_id, title, content, source_lang, created_at, updated_at
-     FROM documents WHERE id = ?`,
+    `SELECT ${DOCUMENT_COLUMNS} FROM documents WHERE id = ?`,
   )
     .bind(id)
     .first<DocumentRow>();
@@ -69,17 +75,18 @@ export async function createDocument(
     title: string;
     content: string;
     sourceLang: string;
+    versionId: number | null;
   },
 ): Promise<DocumentRecord> {
   // Retry on the vanishingly unlikely slug collision rather than trusting luck.
   for (let attempt = 0; attempt < 5; attempt++) {
     const id = generateId();
     const result = await env.DB.prepare(
-      `INSERT INTO documents (id, owner_id, title, content, source_lang)
-       VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO documents
+         (id, owner_id, title, content, source_lang, version_id)
+       VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO NOTHING
-       RETURNING id, owner_id, title, content, source_lang,
-                 created_at, updated_at`,
+       RETURNING ${DOCUMENT_COLUMNS}`,
     )
       .bind(
         id,
@@ -87,6 +94,7 @@ export async function createDocument(
         input.title,
         input.content,
         input.sourceLang,
+        input.versionId,
       )
       .first<DocumentRow>();
 
@@ -120,7 +128,7 @@ export async function listDocumentsByOwner(
   limit = 50,
 ): Promise<DocumentRecord[]> {
   const { results } = await env.DB.prepare(
-    `SELECT id, owner_id, title, content, source_lang, created_at, updated_at
+    `SELECT ${DOCUMENT_COLUMNS}
      FROM documents
      WHERE owner_id = ?
      ORDER BY updated_at DESC

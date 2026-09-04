@@ -12,8 +12,17 @@
 export interface ScriptureReference {
   /** USFM book code, e.g. "JHN". */
   book: string;
+  /** First chapter of the range. */
   chapter: number;
   verseStart: number | null;
+  /**
+   * Last chapter of the range. Equals `chapter` for a reference inside one
+   * chapter; greater for a span like "Song of Songs 2:1-3:5".
+   *
+   * Ranges never cross a book boundary — "Malachi 4 to Matthew 1" must be
+   * written as two references.
+   */
+  endChapter: number;
   verseEnd: number | null;
 }
 
@@ -134,12 +143,16 @@ const BOOK_ALTERNATION = Object.keys(BOOK_NAMES)
 const NUMBERED_PREFIX = "(?:[123]|I{1,3})\\s*(?:st|nd|rd|th)?\\s*";
 
 /**
- * Matches a reference anywhere in prose: book name, chapter, then an optional
- * verse or verse range. Group 1 is the book name.
+ * Matches a reference anywhere in prose.
+ *
+ * Groups: 1 book, 2 chapter, 3 start verse, 4 end chapter, 5 end verse.
+ * The end of a range may name a chapter ("2:1-3:5") or just a verse
+ * ("3:16-18"), so group 4 is only present in the spanning form.
  */
 const REFERENCE_PATTERN = new RegExp(
   `((?:${NUMBERED_PREFIX})?(?:${BOOK_ALTERNATION})\\.?)` +
-    `\\s+(\\d{1,3})(?::(\\d{1,3})(?:\\s*[-–]\\s*(\\d{1,3}))?)?`,
+    `\\s+(\\d{1,3})` +
+    `(?::(\\d{1,3})(?:\\s*[-–]\\s*(?:(\\d{1,3})\\s*:\\s*)?(\\d{1,3}))?)?`,
   "gi",
 );
 
@@ -176,17 +189,28 @@ export function findReferences(
     if (!book) continue;
 
     const startRaw = match[3];
-    const endRaw = match[4];
+    const endChapterRaw = match[4];
+    const endRaw = match[5];
+
+    const chapter = Number(chapterRaw);
     const verseStart = startRaw ? Number(startRaw) : null;
     const verseEnd = endRaw ? Number(endRaw) : verseStart;
+    // Absent end chapter means the range stays inside the opening chapter.
+    const endChapter = endChapterRaw ? Number(endChapterRaw) : chapter;
 
-    // A backwards range is a typo, not a reference.
-    if (verseStart !== null && verseEnd !== null && verseEnd < verseStart) {
+    // Backwards ranges are typos, not references — in either dimension.
+    if (endChapter < chapter) continue;
+    if (
+      endChapter === chapter &&
+      verseStart !== null &&
+      verseEnd !== null &&
+      verseEnd < verseStart
+    ) {
       continue;
     }
 
     found.push({
-      reference: { book, chapter: Number(chapterRaw), verseStart, verseEnd },
+      reference: { book, chapter, verseStart, endChapter, verseEnd },
       start: match.index,
       end: match.index + match[0].length,
     });
@@ -195,32 +219,123 @@ export function findReferences(
   return found;
 }
 
-/** Render a reference as USFM, the format the YouVersion API expects. */
+/**
+ * Render a reference as USFM.
+ *
+ * For a range spanning chapters this returns only the opening segment — the
+ * API cannot express such a range in one identifier. Use `toUsfmSegments` to
+ * fetch a spanning reference.
+ */
 export function toUsfm(ref: ScriptureReference): string {
   if (ref.verseStart === null) return `${ref.book}.${ref.chapter}`;
-  if (ref.verseEnd !== null && ref.verseEnd !== ref.verseStart) {
+  if (
+    ref.endChapter === ref.chapter &&
+    ref.verseEnd !== null &&
+    ref.verseEnd !== ref.verseStart
+  ) {
     return `${ref.book}.${ref.chapter}.${ref.verseStart}-${ref.verseEnd}`;
   }
   return `${ref.book}.${ref.chapter}.${ref.verseStart}`;
 }
 
-const DISPLAY_NAMES: Record<string, string> = Object.entries(
-  BOOK_NAMES,
-).reduce<Record<string, string>>((acc, [name, code]) => {
-  // Prefer the longest spelling as the canonical display name.
-  const titled = name.replace(/\b\w/g, (c) => c.toUpperCase());
-  if (!acc[code] || titled.length > (acc[code]?.length ?? 0)) {
-    acc[code] = titled;
-  }
-  return acc;
-}, {});
+/** True when the reference covers more than one chapter. */
+export function spansChapters(ref: ScriptureReference): boolean {
+  return ref.endChapter > ref.chapter;
+}
 
-/** Human-readable form, e.g. "John 3:16-18". */
+/**
+ * Split a reference into USFM identifiers the API will actually accept.
+ *
+ * The passages endpoint rejects every cross-chapter spelling, so
+ * "Song of Songs 2:1-3:5" has to be fetched as SNG.2.1-17 plus SNG.3.1-5 and
+ * the results joined. Single-chapter references yield exactly one segment.
+ *
+ * @param versesInChapter Verse count for a chapter, from the version's chapter
+ *   metadata. When it returns 0 (unknown), the segment falls back to the whole
+ *   chapter rather than risk an invalid or truncated range.
+ */
+export function toUsfmSegments(
+  ref: ScriptureReference,
+  versesInChapter: (book: string, chapter: number) => number,
+): string[] {
+  if (!spansChapters(ref)) return [toUsfm(ref)];
+
+  const segments: string[] = [];
+
+  for (let chapter = ref.chapter; chapter <= ref.endChapter; chapter++) {
+    const isFirst = chapter === ref.chapter;
+    const isLast = chapter === ref.endChapter;
+
+    if (isFirst) {
+      const from = ref.verseStart ?? 1;
+      const total = versesInChapter(ref.book, chapter);
+      // From the start verse to the end of the chapter. Starting at verse 1 is
+      // the whole chapter, which is also the right identifier when the verse
+      // count is unknown.
+      segments.push(
+        from > 1 && total > 0
+          ? `${ref.book}.${chapter}.${from}-${total}`
+          : `${ref.book}.${chapter}`,
+      );
+    } else if (isLast) {
+      const to = ref.verseEnd;
+      segments.push(
+        to === null ? `${ref.book}.${chapter}` : `${ref.book}.${chapter}.1-${to}`,
+      );
+    } else {
+      // Whole chapters in between.
+      segments.push(`${ref.book}.${chapter}`);
+    }
+  }
+
+  return segments;
+}
+
+/**
+ * Canonical display spellings.
+ *
+ * Written out rather than derived from the lookup table: title-casing every
+ * word produces "Song Of Solomon", and picking the longest spelling gives
+ * "Psalms 23" where "Psalm 23" is what people say.
+ */
+const DISPLAY_NAMES: Record<string, string> = {
+  GEN: "Genesis", EXO: "Exodus", LEV: "Leviticus", NUM: "Numbers",
+  DEU: "Deuteronomy", JOS: "Joshua", JDG: "Judges", RUT: "Ruth",
+  "1SA": "1 Samuel", "2SA": "2 Samuel", "1KI": "1 Kings", "2KI": "2 Kings",
+  "1CH": "1 Chronicles", "2CH": "2 Chronicles", EZR: "Ezra",
+  NEH: "Nehemiah", EST: "Esther", JOB: "Job", PSA: "Psalm",
+  PRO: "Proverbs", ECC: "Ecclesiastes", SNG: "Song of Songs",
+  ISA: "Isaiah", JER: "Jeremiah", LAM: "Lamentations", EZK: "Ezekiel",
+  DAN: "Daniel", HOS: "Hosea", JOL: "Joel", AMO: "Amos", OBA: "Obadiah",
+  JON: "Jonah", MIC: "Micah", NAM: "Nahum", HAB: "Habakkuk",
+  ZEP: "Zephaniah", HAG: "Haggai", ZEC: "Zechariah", MAL: "Malachi",
+  MAT: "Matthew", MRK: "Mark", LUK: "Luke", JHN: "John", ACT: "Acts",
+  ROM: "Romans", "1CO": "1 Corinthians", "2CO": "2 Corinthians",
+  GAL: "Galatians", EPH: "Ephesians", PHP: "Philippians",
+  COL: "Colossians", "1TH": "1 Thessalonians", "2TH": "2 Thessalonians",
+  "1TI": "1 Timothy", "2TI": "2 Timothy", TIT: "Titus", PHM: "Philemon",
+  HEB: "Hebrews", JAS: "James", "1PE": "1 Peter", "2PE": "2 Peter",
+  "1JN": "1 John", "2JN": "2 John", "3JN": "3 John", JUD: "Jude",
+  REV: "Revelation",
+};
+
+/** Human-readable form, e.g. "John 3:16-18" or "Song of Songs 2:1-3:5". */
 export function formatReference(ref: ScriptureReference): string {
   const book = DISPLAY_NAMES[ref.book] ?? ref.book;
-  if (ref.verseStart === null) return `${book} ${ref.chapter}`;
+
+  if (ref.verseStart === null) {
+    return spansChapters(ref)
+      ? `${book} ${ref.chapter}-${ref.endChapter}`
+      : `${book} ${ref.chapter}`;
+  }
+
+  if (spansChapters(ref)) {
+    return `${book} ${ref.chapter}:${ref.verseStart}-${ref.endChapter}:${ref.verseEnd ?? 1}`;
+  }
+
   if (ref.verseEnd !== null && ref.verseEnd !== ref.verseStart) {
     return `${book} ${ref.chapter}:${ref.verseStart}-${ref.verseEnd}`;
   }
+
   return `${book} ${ref.chapter}:${ref.verseStart}`;
 }

@@ -22,7 +22,7 @@
     {
       "binding": "DB",
       "database_name": "scripturepad",
-      "database_id": "PLACEHOLDER_RUN_WRANGLER_D1_CREATE",
+      "database_id": "bd2ba684-c5a5-4906-800e-1cdb361b904a",
       "migrations_dir": "migrations"
     }
   ],
@@ -33,7 +33,7 @@
   "kv_namespaces": [
     {
       "binding": "BIBLE_CACHE",
-      "id": "PLACEHOLDER_RUN_WRANGLER_KV_CREATE"
+      "id": "7f9d81531677414ba0632a867f1d3b3d"
     }
   ]
 

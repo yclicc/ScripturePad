@@ -72,14 +72,70 @@ Hard-won details that will otherwise cost time:
 - **`/v1/bibles` requires a language filter.** Omitting `language_ranges[]`
   returns HTTP 422. The bracket in the parameter name is literal.
 - **`all_available=true`** is needed to see all platform translations. Without
-  it you only get the versions enabled for your specific app key.
+  it you only get the licence-free ones — for English that is 11 versions
+  rather than 20, hiding the NIV, NASB, AMP, and NIrV.
+- **Listed does not mean fetchable.** A licensed version appears in the list
+  but its text returns **403** until the app key has agreed to that
+  publisher's *fast-track licence* (e.g. "Biblica Fast-track Bible License"
+  for the NIV). Agreement is a one-time action in the developer portal, not
+  something the code can do. `GET /v1/licenses?bible_id=<id>` shows which
+  licence governs a version; `agreed_dt: null` means it has not been accepted.
+- The default English version is **NIVUK11 (id 113)** — licensed, so its
+  copyright must appear wherever its text does. `FALLBACK_VERSION_ID` (BSB,
+  3034) stays available as the licence-free option.
 - **Passages return HTML by default.** Pass `format=text` when you want plain
   text rather than writing your own tag stripper.
 - **References use USFM**, e.g. `JHN.3.16`. Version IDs are numeric (e.g. 3034).
-- **Copyright attribution is mandatory** by the license agreement. Every rendered
-  passage must display its version's copyright. Fetch it from the version
-  metadata and cache it alongside.
+- **Copyright attribution is mandatory** by the license agreement. Fetch it
+  from the version metadata and cache it alongside the passage.
+  Attribution is shown **once per page, in a colophon at the foot** — listing
+  each version actually cited — rather than repeated under every passage.
+  Repeating a long copyright string under each of a dozen citations makes
+  sermon notes unreadable. One clear, complete credit per version satisfies the
+  licence and reads better.
 - Pagination uses `page_size` / `page_token`, returning `next_page_token`.
+
+Verified against the live API with a real app key:
+
+- **Language codes are normalised server-side.** `language_ranges[]` accepts
+  both 2- and 3-letter codes (`en` and `eng` both work; `cmn` resolves to tag
+  `zh`). Responses come back with a BCP-47 `language_tag` (`en`, not `eng`).
+  The legacy app's hand-written ISO-639-3 remapping (`zh-CN`→`cmn`, `fa`→`pes`,
+  `ara`→`arb`) is **not needed** — pass the browser language tag straight
+  through.
+- **`GET /v1/languages`** exists and returns `display_names` for each language
+  in every other language, so a language picker can show each option in its own
+  script without shipping a translation table.
+- Version metadata carries `copyright` directly (BSB 3034 returns
+  `"Public Domain"`), so attribution needs no extra request.
+- **Passage ranges may not cross a chapter boundary.** The API accepts
+  `SNG.2.1-5` (short form only) but 404s on every cross-chapter spelling —
+  `SNG.2.1-SNG.3.5`, `SNG.2.1-3.5`, `SNG.2+SNG.3`. Even the redundant
+  same-chapter form `SNG.2.1-SNG.2.5` fails. A reference like
+  "Song of Songs 2:1-3:5" must therefore be **split into one request per
+  chapter** and the results concatenated.
+- `GET /v1/bibles/{id}/books/{book}/chapters` returns every chapter with its
+  full verse list, which is where the per-chapter verse counts needed for that
+  splitting come from. Cache it — it is static per version.
+- **A language may have no Bibles at all.** `language_ranges[]=sw` returns
+  **HTTP 204 with an empty body**, not a 200 with an empty array. Parsing the
+  response as JSON without checking for 204 throws.
+- **Rate limiting is aggressive and the penalty is long.** A handful of quick
+  requests returns `429 Rate limit exceeded` with **`retry-after: 300`** — a
+  five-minute lockout. No header advertises the actual quota. Consequences:
+  aggressive KV caching is essential, multi-chapter spans are fetched
+  **sequentially rather than with `Promise.all`**, and any bulk probing during
+  development should be spaced out or it will lock the key for everyone.
+
+### Known issue: Traditional Chinese
+
+Traditional Chinese Bibles exist (ids **312** and **1392**, tagged
+`zh-Hant-TW`), but filtering `language_ranges[]` on `zh-Hant-TW`, `zh-Hant`,
+and `zh-TW` all returned empty during development, while plain `zh` returns
+three Simplified versions. Verification was blocked by the rate limit above and
+is **unfinished** — `baseLanguage()` currently maps Traditional locales to
+`zh-Hant-TW` on the assumption the filter works once un-throttled. If it does
+not, fetch those two ids directly rather than relying on the language filter.
 
 The JavaScript SDK (`@youversion/platform-core`) wraps this:
 
@@ -124,6 +180,40 @@ Chosen deliberately: users are pastors who largely already have YouVersion
 accounts, and we already depend on YouVersion for Bible text, so this adds no
 new vendor relationship.
 
+### Remembered translation preferences
+
+Once a user is signed in, remember their preferred Bible version **per
+language**, keyed on `(yvp_id, language_tag)`. Preference is inherently
+per-language: someone who reads BSB in English and a specific Swahili
+translation should get both without re-picking each visit.
+
+- Store in a `user_preferences` table, not in the document — the same document
+  viewed by two people should honour each reader's own choice.
+- Anonymous readers get the same behaviour backed by `localStorage`, so the
+  feature degrades gracefully without a login and the signed-in path is a
+  straight upgrade rather than a separate code path.
+- Write the preference whenever the reader changes the version selector, not
+  behind an explicit "save" action.
+
+**A first-time visitor inherits the author's choice.** The document records the
+version it was authored against (`documents.version_id`), so a congregation
+member opening a share link gets the translation their pastor chose rather than
+a generic default — which is almost always the one being preached from. It is
+only a starting point: the moment the reader picks something else, their own
+preference wins and is remembered.
+
+Resolution order for which version to render:
+
+1. The reader's own saved preference for that language (D1 if signed in,
+   `localStorage` if not) — an explicit choice always wins.
+2. The version the document was authored against, when it is available in the
+   reader's language.
+3. `DEFAULT_VERSION_ID` (BSB, license-free).
+
+Step 2 is language-conditional: inheriting the author's English version is
+wrong for a reader viewing the page in Swahili, so fall through to the default
+for that language when the tags do not match.
+
 ### Storage decision
 
 Paste content lives in **our own D1 database**. Storing documents in the user's
@@ -151,18 +241,40 @@ ProseMirror, targeting "paste from Google Docs and it looks right".
 
 ### Scripture references
 
-A **custom ProseMirror node**, not a text convention. The old app used a `&`
-sigil (`John 3:16 &`) parsed by a marked.js extension; that was a Markdown
-workaround and should not be recreated. Instead:
+A **custom ProseMirror node**, not a text convention.
 
-- Detect references as the user types (input rule) and offer to insert a
-  scripture node.
-- The node stores structured attributes (USFM book, chapter, verse range) — not
-  the rendered text. Text is fetched and rendered at view time, so the reader's
-  chosen translation applies.
-- Book-name to USFM mapping can be lifted from
-  `static/utils.js` on the `legacy-deno-biblebrain` branch, which has a complete
-  table. Verify it against YouVersion's USFM codes before trusting it.
+**No sigil syntax of any kind.** The old app used `John 3:16 &`; an early draft
+of the rewrite used `[John 3:16]`. Both are wrong for the same reason: asking a
+non-technical pastor to type punctuation codes is exactly the "pseudo
+programming" this rewrite exists to remove. If a feature needs a special
+character to trigger it, that is a design failure.
+
+Instead, references are **detected automatically** as the author types or
+pastes. When one is found, an inline popup appears just beneath it offering
+three citation styles:
+
+| Style | Renders as |
+| --- | --- |
+| `block` | The passage as its own indented paragraph. **Default.** |
+| `popover` | Reference stays inline; verse appears on hover or tap. |
+| `inline` | Verse text flows into the sentence, in quotation marks. |
+
+- Dismissing the popup (Esc, or clicking away) leaves the text as ordinary
+  prose. Detection must never rewrite the document on its own.
+- The same choice is available from a toolbar button for anyone who prefers to
+  select text and act on it explicitly.
+- Once dismissed for a given reference, do not re-prompt for it; nagging is
+  worse than missing a citation.
+- `popover` must degrade to visible text in print and in the static reader view
+  — a hidden verse is useless on paper.
+
+The node stores structured attributes (USFM book, chapter, verse range, and the
+chosen `style`) — never the rendered text. Text is fetched at view time, so the
+reader's chosen translation applies.
+
+Book-name to USFM mapping lives in `src/shared/references.ts`, with the pattern
+built as an alternation of known book names so ordinary prose cannot produce
+false positives. It is unit-tested against `BOOK_IDS` from the YouVersion SDK.
 
 ### Translation support
 
@@ -173,6 +285,32 @@ translate") that renders to `translate="no"`, rather than punctuation syntax.
 
 Also carry over from the legacy viewer: detect RTL and set `dir="rtl"` on the
 document element.
+
+#### The reader view must not be a ProseMirror instance
+
+**Machine translation does not touch `contenteditable` regions.** Browser and
+extension translators deliberately skip them, because rewriting text inside a
+live editor would corrupt the document being edited. A read-only ProseMirror
+view still mounts a `contenteditable` host, so a reader page built that way is
+silently untranslatable — which defeats the point of the product.
+
+Therefore the reader view renders **plain static DOM**, server-side, with no
+editor attached. ProseMirror is loaded only when the author is actually
+editing. Benefits beyond translation: readers do not download the editor
+bundle, and the page has content in the initial HTML.
+
+Two related requirements:
+
+- **Content must be in the server-rendered HTML.** Translators scan the DOM on
+  load; content injected later by JavaScript is missed even outside an editor.
+- Keep `translate="no"` on scripture references, version names, and copyright
+  strings — proper nouns and legal text should survive translation intact.
+- **Mark the strings, not the container.** Our own UI wording — the colophon's
+  "Scripture quotations" heading, button labels, empty states — *must* be
+  translated along with the page; a French reader should see French chrome.
+  Putting `translate="no"` on a wrapper to protect the version names inside it
+  freezes that wording too. Apply the attribute to the individual proper nouns
+  and licence notices only.
 
 ## UI Direction
 

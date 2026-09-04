@@ -1,0 +1,209 @@
+import { Hono } from "hono";
+import type { Env, SessionUser, Variables } from "./env.ts";
+import {
+  getSessionUser,
+  handleCallback,
+  signOut,
+  startSignIn,
+} from "./auth.ts";
+import {
+  createDocument,
+  deleteDocument,
+  getDocument,
+  updateDocument,
+} from "./storage.ts";
+import { getHttpStatus } from "@youversion/platform-core";
+import { canEdit } from "./ownership.ts";
+import {
+  DEFAULT_VERSION_ID,
+  fetchPassage,
+  fetchReference,
+  listVersions,
+} from "./youversion.ts";
+import { parseReference } from "../shared/references.ts";
+
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+// Resolve the session once per request, before any route runs.
+app.use("*", async (c, next) => {
+  c.set("user", await getSessionUser(c.req.raw, c.env));
+  await next();
+});
+
+app.get("/auth/signin", async (c) =>
+  startSignIn(c.req.raw, c.env, c.req.query("return_to") ?? "/"),
+);
+
+app.get("/auth/callback", async (c) => handleCallback(c.req.raw, c.env));
+
+app.post("/auth/signout", async (c) => signOut(c.req.raw, c.env));
+
+/** Who is signed in, for the client to render the account control. */
+app.get("/api/me", (c) => {
+  const user = c.get("user");
+  return c.json(
+    user ? { signedIn: true, name: user.displayName, avatar: user.avatarUrl }
+         : { signedIn: false },
+  );
+});
+
+/**
+ * The signed-in user's `yvp_id`, or null.
+ *
+ * Populated by middleware so every route sees the same resolved identity.
+ */
+function getUser(c: { get: (key: "user") => SessionUser | null }): string | null {
+  return c.get("user")?.yvpId ?? null;
+}
+
+const api = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+api.get("/passage", async (c) => {
+  const ref = c.req.query("ref");
+  const versionParam = c.req.query("version");
+
+  if (!ref) {
+    return c.json({ error: "Missing `ref` query parameter" }, 400);
+  }
+
+  const versionId = versionParam ? Number(versionParam) : DEFAULT_VERSION_ID;
+  if (!Number.isInteger(versionId) || versionId <= 0) {
+    return c.json({ error: "Invalid `version`" }, 400);
+  }
+
+  // A structured reference is preferred, because it can describe a range that
+  // crosses a chapter — something a single USFM identifier cannot express.
+  const parsed = parseReference(ref);
+
+  try {
+    if (parsed) {
+      return c.json(await fetchReference(c.env, parsed, versionId));
+    }
+
+    // Fall back to a raw USFM identifier, e.g. "JHN.3.16".
+    if (/^[A-Z0-9]{3}\.\d/i.test(ref)) {
+      return c.json(await fetchPassage(c.env, ref.toUpperCase(), versionId));
+    }
+
+    return c.json({ error: `Could not parse reference: ${ref}` }, 400);
+  } catch (error) {
+    const status = getHttpStatus(error);
+    if (status === 404) {
+      return c.json({ error: `No such passage: ${ref}` }, 404);
+    }
+    if (status === 403) {
+      // Listed but not licensed to this app key; see CLAUDE.md.
+      return c.json(
+        { error: "This translation is not licensed for use here." },
+        403,
+      );
+    }
+    if (status === 429) {
+      return c.json({ error: "Too many requests — please retry." }, 429);
+    }
+    console.error("passage fetch failed", { ref, versionId, error });
+    return c.json({ error: "Could not fetch passage" }, 502);
+  }
+});
+
+api.get("/versions", async (c) => {
+  // The API requires a language filter, so default rather than 422 the caller.
+  const language = c.req.query("language") ?? "eng";
+
+  try {
+    // May legitimately be empty: some languages have no Bible on the platform.
+    return c.json(await listVersions(c.env, language));
+  } catch (error) {
+    console.error("version list failed", { language, error });
+    return c.json({ error: "Could not list versions" }, 502);
+  }
+});
+
+api.get("/documents/:id", async (c) => {
+  const doc = await getDocument(c.env, c.req.param("id"));
+  if (!doc) return c.json({ error: "Not found" }, 404);
+
+  return c.json({
+    id: doc.id,
+    title: doc.title,
+    content: JSON.parse(doc.content),
+    sourceLang: doc.sourceLang,
+    // A first-time reader inherits the author's translation choice.
+    versionId: doc.versionId,
+    updatedAt: doc.updatedAt,
+    canEdit: canEdit(doc.ownerId, getUser(c)),
+  });
+});
+
+api.post("/documents", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== "object" || !("content" in body)) {
+    return c.json({ error: "Expected a JSON body with `content`" }, 400);
+  }
+
+  const { content, title, sourceLang, versionId } = body as {
+    content: unknown;
+    title?: unknown;
+    sourceLang?: unknown;
+    versionId?: unknown;
+  };
+
+  const doc = await createDocument(c.env, {
+    ownerId: getUser(c),
+    title: typeof title === "string" ? title.slice(0, 300) : "",
+    content: JSON.stringify(content),
+    sourceLang: typeof sourceLang === "string" ? sourceLang : "en",
+    // Recorded so readers inherit the translation the author wrote against.
+    versionId:
+      typeof versionId === "number" && Number.isInteger(versionId)
+        ? versionId
+        : null,
+  });
+
+  return c.json({ id: doc.id }, 201);
+});
+
+api.put("/documents/:id", async (c) => {
+  const id = c.req.param("id");
+  const doc = await getDocument(c.env, id);
+  if (!doc) return c.json({ error: "Not found" }, 404);
+
+  if (!canEdit(doc.ownerId, getUser(c))) {
+    return c.json({ error: "Not allowed to edit this document" }, 403);
+  }
+
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== "object" || !("content" in body)) {
+    return c.json({ error: "Expected a JSON body with `content`" }, 400);
+  }
+
+  const { content, title } = body as { content: unknown; title?: unknown };
+
+  await updateDocument(c.env, id, {
+    title: typeof title === "string" ? title.slice(0, 300) : doc.title,
+    content: JSON.stringify(content),
+  });
+
+  return c.json({ ok: true });
+});
+
+api.delete("/documents/:id", async (c) => {
+  const id = c.req.param("id");
+  const doc = await getDocument(c.env, id);
+  if (!doc) return c.json({ error: "Not found" }, 404);
+
+  if (!canEdit(doc.ownerId, getUser(c))) {
+    return c.json({ error: "Not allowed to delete this document" }, 403);
+  }
+
+  await deleteDocument(c.env, id);
+  return c.json({ ok: true });
+});
+
+app.route("/api", api);
+
+// Anything not handled above is a client-side route; the SPA fallback in
+// wrangler.jsonc serves index.html.
+app.get("*", (c) => c.env.ASSETS.fetch(c.req.raw));
+
+export default app;

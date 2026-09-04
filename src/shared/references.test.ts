@@ -6,6 +6,7 @@ import {
   lookupBook,
   parseReference,
   toUsfm,
+  toUsfmSegments,
 } from "./references.ts";
 
 describe("lookupBook", () => {
@@ -84,25 +85,58 @@ describe("book codes", () => {
 describe("parseReference", () => {
   it("parses a verse, a range, and a whole chapter", () => {
     expect(parseReference("John 3:16")).toEqual({
-      book: "JHN", chapter: 3, verseStart: 16, verseEnd: 16,
+      book: "JHN", chapter: 3, verseStart: 16, endChapter: 3, verseEnd: 16,
     });
     expect(parseReference("1 Cor 13:4-7")).toEqual({
-      book: "1CO", chapter: 13, verseStart: 4, verseEnd: 7,
+      book: "1CO", chapter: 13, verseStart: 4, endChapter: 13, verseEnd: 7,
     });
     expect(parseReference("Genesis 1")).toEqual({
-      book: "GEN", chapter: 1, verseStart: null, verseEnd: null,
+      book: "GEN", chapter: 1, verseStart: null, endChapter: 1, verseEnd: null,
     });
   });
 
   it("accepts an en dash as a range separator", () => {
     // Word and Google Docs autocorrect hyphens into en dashes.
     expect(parseReference("Matthew 5:3–12")).toEqual({
-      book: "MAT", chapter: 5, verseStart: 3, verseEnd: 12,
+      book: "MAT", chapter: 5, verseStart: 3, endChapter: 5, verseEnd: 12,
     });
   });
 
   it("rejects a backwards range", () => {
     expect(parseReference("John 3:18-16")).toBeNull();
+  });
+
+  it("parses a range spanning chapters", () => {
+    // Previously this silently parsed as SNG.2.1-3 — verses 1-3 of chapter 2,
+    // an entirely different passage — rather than 2:1 through 3:5.
+    expect(parseReference("Song of Songs 2:1-3:5")).toEqual({
+      book: "SNG",
+      chapter: 2,
+      verseStart: 1,
+      endChapter: 3,
+      verseEnd: 5,
+    });
+    expect(parseReference("Genesis 1:1-2:3")).toEqual({
+      book: "GEN",
+      chapter: 1,
+      verseStart: 1,
+      endChapter: 2,
+      verseEnd: 3,
+    });
+  });
+
+  it("rejects a backwards range across chapters", () => {
+    expect(parseReference("Genesis 3:1-2:5")).toBeNull();
+  });
+
+  it("keeps single-chapter ranges unchanged", () => {
+    expect(parseReference("John 3:16-18")).toEqual({
+      book: "JHN",
+      chapter: 3,
+      verseStart: 16,
+      endChapter: 3,
+      verseEnd: 18,
+    });
   });
 
   it("rejects prose with no reference", () => {
@@ -114,10 +148,10 @@ describe("parseReference", () => {
     // "See 1" looks like book + chapter to a greedy matcher, which would eat
     // the numeral belonging to "1 Cor".
     expect(parseReference("See 1 Cor 13:4-7")).toEqual({
-      book: "1CO", chapter: 13, verseStart: 4, verseEnd: 7,
+      book: "1CO", chapter: 13, verseStart: 4, endChapter: 13, verseEnd: 7,
     });
     expect(parseReference("Read John 3:16")).toEqual({
-      book: "JHN", chapter: 3, verseStart: 16, verseEnd: 16,
+      book: "JHN", chapter: 3, verseStart: 16, endChapter: 3, verseEnd: 16,
     });
   });
 });
@@ -130,12 +164,73 @@ describe("toUsfm", () => {
   });
 });
 
+describe("toUsfmSegments", () => {
+  // The API rejects every cross-chapter spelling, so a spanning reference has
+  // to become one request per chapter.
+  const versesPerChapter = (book: string, chapter: number) => {
+    expect(book).toBe("SNG");
+    return { 1: 17, 2: 17, 3: 11 }[chapter] ?? 0;
+  };
+
+  it("leaves a single-chapter reference as one segment", () => {
+    expect(
+      toUsfmSegments(parseReference("John 3:16-18")!, () => 36),
+    ).toEqual(["JHN.3.16-18"]);
+  });
+
+  it("leaves a whole chapter as one segment", () => {
+    expect(toUsfmSegments(parseReference("Genesis 1")!, () => 31)).toEqual([
+      "GEN.1",
+    ]);
+  });
+
+  it("splits a range at each chapter boundary", () => {
+    // 2:1-3:5 becomes the rest of chapter 2, then the start of chapter 3.
+    expect(
+      toUsfmSegments(parseReference("Song of Songs 2:1-3:5")!, versesPerChapter),
+    ).toEqual(["SNG.2", "SNG.3.1-5"]);
+  });
+
+  it("includes whole chapters in the middle of a long span", () => {
+    expect(
+      toUsfmSegments(parseReference("Song of Songs 1:5-3:2")!, (b, c) =>
+        versesPerChapter(b, c),
+      ),
+    ).toEqual(["SNG.1.5-17", "SNG.2", "SNG.3.1-2"]);
+  });
+
+  it("falls back to a whole chapter when the verse count is unknown", () => {
+    // An unknown count must not produce a truncated or invalid range.
+    expect(
+      toUsfmSegments(parseReference("Song of Songs 2:1-3:5")!, () => 0),
+    ).toEqual(["SNG.2", "SNG.3.1-5"]);
+  });
+});
+
 describe("formatReference", () => {
   it("round-trips to a human-readable form", () => {
     expect(formatReference(parseReference("Jn 3:16")!)).toBe("John 3:16");
     expect(formatReference(parseReference("Genesis 1")!)).toBe("Genesis 1");
     expect(formatReference(parseReference("Matthew 5:3-12")!)).toBe(
       "Matthew 5:3-12",
+    );
+  });
+
+  it("uses the spelling people actually write", () => {
+    // Deriving these by title-casing gives "Song Of Solomon"; taking the
+    // longest spelling gives "Psalms 23".
+    expect(formatReference(parseReference("Song of Songs 2:1")!)).toBe(
+      "Song of Songs 2:1",
+    );
+    expect(formatReference(parseReference("Ps 23")!)).toBe("Psalm 23");
+    expect(formatReference(parseReference("1Cor 13:4")!)).toBe(
+      "1 Corinthians 13:4",
+    );
+  });
+
+  it("shows both chapters for a spanning range", () => {
+    expect(formatReference(parseReference("Song of Songs 2:1-3:5")!)).toBe(
+      "Song of Songs 2:1-3:5",
     );
   });
 });

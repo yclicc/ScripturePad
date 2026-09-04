@@ -1,0 +1,13 @@
+{
+  // The client is browser code. Worker types are deliberately excluded here —
+  // with both loaded, globals like `append` and `fetch` resolve to the workerd
+  // definitions and browser DOM calls fail to typecheck.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"]
+  },
+  // `exclude` is reset because the root config excludes this directory.
+  "include": [".", "../shared"],
+  "exclude": []
+}
