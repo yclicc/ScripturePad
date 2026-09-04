@@ -384,15 +384,22 @@ verification) must go in Cloudflare, not Google.
 
 ### OAuth registration
 
-Sign in with YouVersion needs a redirect URL registered at
-platform.youversion.com before a client id is issued, which is why auth could
-not be finished before a deployable URL existed. Register both:
+**There is no separate OAuth client id to obtain.** YouVersion uses the
+**app key as the `client_id`** — the same value already used for the API. The
+`YOUVERSION_CLIENT_ID` secret exists only as an override should they split the
+two later; leave it blank and `clientId()` falls back to the app key.
 
+What *does* need registering, in the app's settings at platform.youversion.com,
+is the **callback URL**. It must match `redirect_uri` exactly or the authorize
+call is rejected:
+
+- `http://localhost:8787/auth/callback` (local development — this is why the
+  dev port is pinned in `wrangler.jsonc`)
 - `https://scripturepad.org/auth/callback` (production)
-- `http://localhost:8787/auth/callback` (local development)
 
-Then `wrangler secret put YOUVERSION_CLIENT_ID` with the issued id, and put the
-same value in `.dev.vars` for local work.
+The authorize request must include `nonce` alongside `state`: `state` defends
+against CSRF, `nonce` against replay, and the id token echoes the nonce back
+for checking.
 
 ## Secrets
 

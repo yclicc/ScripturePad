@@ -10,6 +10,23 @@ import type { Env, SessionUser } from "./env.ts";
 const AUTHORIZE_URL = "https://api.youversion.com/auth/authorize";
 const TOKEN_URL = "https://api.youversion.com/auth/token";
 
+/**
+ * The OAuth `client_id` is the YouVersion **app key** — there is no separate
+ * credential to obtain. `YOUVERSION_CLIENT_ID` exists only as an override for
+ * the unlikely case they split the two later; normally it is left unset.
+ *
+ * What *does* have to be registered at platform.youversion.com is the callback
+ * URL, which must match `redirect_uri` exactly or the authorize call is
+ * rejected.
+ */
+function clientId(env: Env): string {
+  const override = env.YOUVERSION_CLIENT_ID?.trim();
+  if (override && override !== "your-client-id" && !override.startsWith("pending")) {
+    return override;
+  }
+  return env.YOUVERSION_APP_KEY;
+}
+
 function base64UrlEncode(bytes: ArrayBuffer | Uint8Array): string {
   const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   let binary = "";
@@ -48,6 +65,8 @@ const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 interface PkceState {
   codeVerifier: string;
   state: string;
+  /** Replay protection; echoed back in the id token and checked. */
+  nonce: string;
   /** Where to send the user once signed in. */
   returnTo: string;
 }
@@ -96,17 +115,19 @@ export async function startSignIn(
 
   const codeVerifier = randomUrlSafeString();
   const state = randomUrlSafeString(16);
+  const nonce = randomUrlSafeString(16);
 
   const authorizeUrl = new URL(AUTHORIZE_URL);
   authorizeUrl.searchParams.set("response_type", "code");
-  authorizeUrl.searchParams.set("client_id", env.YOUVERSION_CLIENT_ID);
+  authorizeUrl.searchParams.set("client_id", clientId(env));
   authorizeUrl.searchParams.set("redirect_uri", redirectUri);
   authorizeUrl.searchParams.set("scope", "openid profile email");
   authorizeUrl.searchParams.set("state", state);
+  authorizeUrl.searchParams.set("nonce", nonce);
   authorizeUrl.searchParams.set("code_challenge", await codeChallenge(codeVerifier));
   authorizeUrl.searchParams.set("code_challenge_method", "S256");
 
-  const pkce: PkceState = { codeVerifier, state, returnTo };
+  const pkce: PkceState = { codeVerifier, state, nonce, returnTo };
 
   return new Response(null, {
     status: 302,
@@ -199,7 +220,7 @@ export async function handleCallback(
       grant_type: "authorization_code",
       code,
       redirect_uri: redirectUri,
-      client_id: env.YOUVERSION_CLIENT_ID,
+      client_id: clientId(env),
       code_verifier: pkce.codeVerifier,
     }),
   });
@@ -218,6 +239,12 @@ export async function handleCallback(
   const claims = await verifyToken(token);
   if (!claims) {
     return new Response("Could not verify sign-in.", { status: 502 });
+  }
+
+  // Replay protection: the id token must echo the nonce we generated. An id
+  // token captured from an earlier sign-in carries a different one.
+  if (tokens.id_token && claims.nonce && claims.nonce !== pkce.nonce) {
+    return new Response("Sign-in could not be verified.", { status: 400 });
   }
 
   // `yvp_id` is documented as the stable primary identifier; `sub` is the

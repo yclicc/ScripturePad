@@ -15,6 +15,13 @@
     "enabled": true
   },
 
+  // Pinned so the local URL never moves. It is also the port registered as an
+  // OAuth redirect (http://localhost:8787/auth/callback), which breaks if the
+  // dev server lands somewhere else.
+  "dev": {
+    "port": 8787
+  },
+
   // Uncomment once scripturepad.org is active in Cloudflare (its nameservers
   // must point at Cloudflare first — see CLAUDE.md "Deployment"). Deploying
   // with these set before the zone exists fails, which is why they start

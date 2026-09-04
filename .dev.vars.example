@@ -5,8 +5,13 @@
 # Server-side only — this must never be sent to the browser.
 YOUVERSION_APP_KEY="your-app-key"
 
-# OAuth client id for Sign in with YouVersion.
-YOUVERSION_CLIENT_ID="your-client-id"
+# OAuth client_id. Leave blank — YouVersion uses the app key above as the
+# client_id, so there is no second credential to obtain. What you DO need to
+# register at platform.youversion.com is the callback URL, which must match
+# the redirect_uri exactly:
+#   http://localhost:8787/auth/callback   (local development)
+#   https://scripturepad.org/auth/callback (production)
+YOUVERSION_CLIENT_ID=""
 
 # Random string used to sign session cookies, e.g. `openssl rand -base64 32`.
 SESSION_SECRET="generate-a-random-value"
