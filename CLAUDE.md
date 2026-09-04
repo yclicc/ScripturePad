@@ -7,10 +7,10 @@ integration. A pastor writes or pastes notes, references scripture inline, and
 shares a public link. Readers can view the notes in their own language, with the
 referenced passages rendered in a Bible translation of their choosing.
 
-This repository is currently a **full rewrite in progress**. The previous
+The rewrite is **complete and live at scripturepad.org**. The previous
 implementation (Deno + Deno Deploy + Bible Brain/DBT API + Markdown/CodeMirror)
 is preserved on the `legacy-deno-biblebrain` branch for reference. Nothing on
-`master` should be assumed to carry over from it.
+`master` carries over from it.
 
 ## The Rewrite: What Is Changing And Why
 
