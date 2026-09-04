@@ -29,14 +29,15 @@
     "port": 8787
   },
 
-  // Uncomment once scripturepad.org is active in Cloudflare (its nameservers
-  // must point at Cloudflare first — see CLAUDE.md "Deployment"). Deploying
-  // with these set before the zone exists fails, which is why they start
-  // commented rather than active.
-  // "routes": [
-  //   { "pattern": "scripturepad.org/*", "zone_name": "scripturepad.org" },
-  //   { "pattern": "www.scripturepad.org/*", "zone_name": "scripturepad.org" }
-  // ],
+  // `custom_domain: true` rather than a plain route, because a route only
+  // intercepts traffic that already resolves — it does not create DNS. With
+  // the old Deno records deleted and nothing in their place, routes deployed
+  // successfully but the hostname resolved to nothing at all. A custom domain
+  // makes Cloudflare create and manage the DNS record itself.
+  "routes": [
+    { "pattern": "scripturepad.org", "custom_domain": true },
+    { "pattern": "www.scripturepad.org", "custom_domain": true }
+  ],
 
   // D1 holds documents and ownership. Create with:
   //   npx wrangler d1 create scripturepad

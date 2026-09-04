@@ -233,12 +233,35 @@ export async function fetchReference(
  * can pass a browser language tag straight through. The legacy app's manual
  * ISO-639-3 remapping table is not needed.
  */
+/**
+ * Versions the `language_ranges` filter cannot find, listed by id.
+ *
+ * Verified against the live API: Bibles 312 (CSBT) and 1392 (CCBT) report
+ * `language_tag: "zh-Hant-TW"` and fetch correctly by id, but every filter
+ * spelling returns **HTTP 204** — `zh-Hant-TW`, `zh-Hant`, `zh-TW`,
+ * `zh-Hant-*`, even `zh-*`. Plain `zh` returns only the three Simplified
+ * versions. They are absent from the filter index, so a Traditional reader
+ * would otherwise be offered Simplified Bibles or nothing at all.
+ *
+ * Revisit if YouVersion fixes the index; the ids remain correct either way.
+ */
+const UNINDEXED_VERSIONS: Record<string, number[]> = {
+  "zh-hant-tw": [312, 1392],
+};
+
+/** Ids to add for a language range the filter under-reports. */
+function unindexedFor(languageRange: string): number[] {
+  return UNINDEXED_VERSIONS[languageRange.toLowerCase()] ?? [];
+}
+
 export async function listVersions(
   env: Env,
   languageRange: string,
 ): Promise<VersionSummary[]> {
   // v3: now includes licensed versions, so older cached lists are incomplete.
-  const cacheKey = `versions:v3:${languageRange}`;
+  // v4: lists can now include versions injected by id that the filter index
+  // omits, so entries cached under v3 are missing them.
+  const cacheKey = `versions:v4:${languageRange}`;
   const cached = await env.BIBLE_CACHE.get<VersionSummary[]>(cacheKey, "json");
   if (cached) return cached;
 
@@ -263,6 +286,21 @@ export async function listVersions(
     languageTag: version.language_tag,
     copyright: version.copyright ?? null,
   }));
+
+  // Add anything the filter index omits, fetched by id. Failures are ignored:
+  // a missing extra should not empty an otherwise good list.
+  const extraIds = unindexedFor(languageRange).filter(
+    (id) => !summaries.some((version) => version.id === id),
+  );
+
+  if (extraIds.length > 0) {
+    const extras = await Promise.all(
+      extraIds.map((id) => getVersion(env, id).catch(() => null)),
+    );
+    for (const extra of extras) {
+      if (extra) summaries.push(extra);
+    }
+  }
 
   await env.BIBLE_CACHE.put(cacheKey, JSON.stringify(summaries), {
     expirationTtl: VERSION_TTL_SECONDS,

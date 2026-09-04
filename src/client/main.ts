@@ -49,7 +49,13 @@ function shell(): {
   el.className = "shell";
   el.innerHTML = `
     <header class="toolbar">
-      <a class="toolbar__brand" href="/">ScripturePad</a>
+      <button type="button" class="toolbar__brand" aria-describedby="tagline">
+        ScripturePad
+        <span class="tagline" id="tagline" role="tooltip">
+          Let machines translate your sermon notes, but leave Bible
+          translation to human experts
+        </span>
+      </button>
       <div class="toolbar__lead"></div>
       <div class="toolbar__actions"></div>
     </header>
@@ -57,6 +63,30 @@ function shell(): {
       <article class="page"></article>
       <aside class="colophon" hidden></aside>
     </main>
+    <footer class="site-footer">
+      <p class="site-footer__credit">
+        Originally created for Antioch Network Manchester
+      </p>
+      <a
+        class="site-footer__logo"
+        href="https://www.antiochnetwork.org.uk"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <!--
+          Served locally rather than hotlinked. The legacy URL was a
+          PageSpeed-optimised path whose hashed filename expired and now 404s;
+          a local copy also avoids sending every visitor's IP to another site.
+        -->
+        <img
+          src="/antioch-network.png"
+          alt="Antioch Network Manchester"
+          width="500"
+          height="172"
+          loading="lazy"
+        />
+      </a>
+    </footer>
   `;
   mount.append(el);
 
@@ -123,6 +153,16 @@ function mountAccount(container: HTMLElement, me: Me): void {
   )}`;
   signIn.textContent = "Sign in";
   container.append(signIn);
+}
+
+/** Start a fresh note. `/` is the editor with no document loaded. */
+function mountNewNoteButton(container: HTMLElement): void {
+  const link = document.createElement("a");
+  link.className = "toolbar__button toolbar__button--new";
+  link.href = "/";
+  link.innerHTML = `<span aria-hidden="true">+</span> New`;
+  link.setAttribute("aria-label", "Start a new note");
+  container.append(link);
 }
 
 /**
@@ -212,7 +252,10 @@ async function main(): Promise<void> {
       actions.append(edit);
     }
 
-    if (me.signedIn) await mountNotesButton(lead, existing.id);
+    if (me.signedIn) {
+      await mountNotesButton(lead, existing.id);
+      mountNewNoteButton(lead);
+    }
 
     mountAccount(actions, me);
     return;
@@ -224,6 +267,26 @@ async function main(): Promise<void> {
   const { DocumentSaver } = await import("./save.ts");
 
   let saver: InstanceType<typeof DocumentSaver>;
+
+  /**
+   * Link from the editor to the finished note — the shareable page.
+   *
+   * Only meaningful once the document has been saved and has an id, so it is
+   * added on demand rather than rendered disabled.
+   */
+  const viewLink = document.createElement("a");
+  viewLink.className = "toolbar__button";
+  viewLink.textContent = "View note";
+  viewLink.hidden = true;
+  actions.append(viewLink);
+
+  const showViewLink = (documentId: string | null) => {
+    if (!documentId) return;
+    viewLink.href = `/${documentId}`;
+    viewLink.hidden = false;
+  };
+
+  showViewLink(existing?.id ?? null);
 
   const view = createEditor({
     mount: page,
@@ -258,12 +321,20 @@ async function main(): Promise<void> {
     documentId: existing?.id ?? null,
     sourceLang: lang,
     getVersionId: () => versionId,
-    onStateChange: (state, message) => toolbar.setSaveState(state, message),
+    onStateChange: (state, message) => {
+      toolbar.setSaveState(state, message);
+      // A new note only becomes shareable once it has been saved.
+      if (state === "saved") showViewLink(saver.id);
+    },
   });
 
   // Somewhere to find previously saved notes. A panel rather than a page, so
   // opening it mid-edit does not lose the author's place.
-  if (me.signedIn) await mountNotesButton(lead, existing?.id ?? null);
+  if (me.signedIn) {
+    await mountNotesButton(lead, existing?.id ?? null);
+    // Only offer "New" from an existing note; on a blank editor it is a no-op.
+    if (existing) mountNewNoteButton(lead);
+  }
 
   mountAccount(actions, me);
 
