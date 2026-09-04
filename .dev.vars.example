@@ -1,0 +1,12 @@
+# Copy to `.dev.vars` (gitignored) for local development.
+# In production these are set with `wrangler secret put <NAME>`.
+
+# YouVersion Platform app key, from https://platform.youversion.com
+# Server-side only — this must never be sent to the browser.
+YOUVERSION_APP_KEY="your-app-key"
+
+# OAuth client id for Sign in with YouVersion.
+YOUVERSION_CLIENT_ID="your-client-id"
+
+# Random string used to sign session cookies, e.g. `openssl rand -base64 32`.
+SESSION_SECRET="generate-a-random-value"

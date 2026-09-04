@@ -1,0 +1,43 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "scripturepad",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  "observability": {
+    "enabled": true
+  },
+
+  // D1 holds documents and ownership. Create with:
+  //   npx wrangler d1 create scripturepad
+  // then paste the returned database_id below.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "scripturepad",
+      "database_id": "PLACEHOLDER_RUN_WRANGLER_D1_CREATE",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // KV caches YouVersion version/language metadata (read-heavy, rarely
+  // written). Create with:
+  //   npx wrangler kv namespace create BIBLE_CACHE
+  "kv_namespaces": [
+    {
+      "binding": "BIBLE_CACHE",
+      "id": "PLACEHOLDER_RUN_WRANGLER_KV_CREATE"
+    }
+  ]
+
+  // Secrets are NOT set here. Use `wrangler secret put <NAME>`:
+  //   YOUVERSION_APP_KEY, YOUVERSION_CLIENT_ID, SESSION_SECRET
+  // For local dev, put them in .dev.vars (gitignored).
+}
