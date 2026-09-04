@@ -5,6 +5,7 @@ import {
   formatReference,
   lookupBook,
   parseReference,
+  toQueryRef,
   toUsfm,
   toUsfmSegments,
 } from "./references.ts";
@@ -161,6 +162,28 @@ describe("toUsfm", () => {
     expect(toUsfm(parseReference("John 3:16")!)).toBe("JHN.3.16");
     expect(toUsfm(parseReference("1 Cor 13:4-7")!)).toBe("1CO.13.4-7");
     expect(toUsfm(parseReference("Genesis 1")!)).toBe("GEN.1");
+  });
+});
+
+describe("toQueryRef", () => {
+  it("round-trips every reference, including spanning ranges", () => {
+    // toUsfm returns only the opening segment for a spanning range, so the
+    // client sending it truncated "John 1:8-2:5" to "John 1:8" and the server
+    // never saw the full range.
+    for (const input of [
+      "John 3:16",
+      "John 3:16-18",
+      "Genesis 1",
+      "John 1:8-2:5",
+      "Song of Songs 2:1-3:5",
+      "1 Cor 13:4-7",
+    ]) {
+      const parsed = parseReference(input);
+      expect(parsed, `${input} should parse`).not.toBeNull();
+
+      const round = parseReference(toQueryRef(parsed!));
+      expect(round, `${input} should round-trip`).toEqual(parsed);
+    }
   });
 });
 

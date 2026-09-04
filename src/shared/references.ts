@@ -244,6 +244,18 @@ export function spansChapters(ref: ScriptureReference): boolean {
 }
 
 /**
+ * Serialise a reference for the `ref` query parameter, without loss.
+ *
+ * `toUsfm` cannot express a range that crosses a chapter — it returns only the
+ * opening segment — so sending it truncated "John 1:8-2:5" to "John 1:8" and
+ * the server never saw the full range. This form always round-trips through
+ * `parseReference`.
+ */
+export function toQueryRef(ref: ScriptureReference): string {
+  return formatReference(ref);
+}
+
+/**
  * Split a reference into USFM identifiers the API will actually accept.
  *
  * The passages endpoint rejects every cross-chapter spelling, so

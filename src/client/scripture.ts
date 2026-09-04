@@ -1,6 +1,10 @@
 import type { Node as PMNode } from "prosemirror-model";
 import type { EditorView, NodeView } from "prosemirror-view";
-import { formatReference, toUsfm, type ScriptureReference } from "../shared/references.ts";
+import {
+  formatReference,
+  toQueryRef,
+  type ScriptureReference,
+} from "../shared/references.ts";
 import { renderPassageLines } from "./reader.ts";
 import { changeScriptureStyle } from "./detect.ts";
 import type { ScriptureStyle } from "./schema.ts";
@@ -132,7 +136,7 @@ export class ScriptureView implements NodeView {
 
     try {
       const params = new URLSearchParams({
-        ref: toUsfm(reference),
+        ref: toQueryRef(reference),
         version: String(this.getVersionId()),
       });
       const res = await fetch(`/api/passage?${params}`, {

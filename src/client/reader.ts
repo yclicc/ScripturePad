@@ -1,4 +1,4 @@
-import { toUsfm, type ScriptureReference } from "../shared/references.ts";
+import { toQueryRef, type ScriptureReference } from "../shared/references.ts";
 import { registerCitedVersion } from "./colophon.ts";
 
 /**
@@ -146,7 +146,7 @@ async function fillScripture(
 
   try {
     const params = new URLSearchParams({
-      ref: toUsfm(reference),
+      ref: toQueryRef(reference),
       version: String(versionId),
     });
     const res = await fetch(`/api/passage?${params}`);
