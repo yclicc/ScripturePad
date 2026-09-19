@@ -5,7 +5,7 @@ import {
   toQueryRef,
   type ScriptureReference,
 } from "../shared/references.ts";
-import { renderPassageLines } from "./reader.ts";
+import { inlineCitationText, renderPassageLines } from "./reader.ts";
 import { changeScriptureStyle } from "./detect.ts";
 import type { ScriptureStyle } from "./schema.ts";
 import { registerCitedVersion } from "./colophon.ts";
@@ -17,7 +17,9 @@ function attrsToReference(attrs: PMNode["attrs"]): ScriptureReference {
     verseStart: attrs.verseStart === null ? null : Number(attrs.verseStart),
     // Falls back to `chapter` for citations stored before ranges could span.
     endChapter:
-      attrs.endChapter == null ? Number(attrs.chapter) : Number(attrs.endChapter),
+      attrs.endChapter == null
+        ? Number(attrs.chapter)
+        : Number(attrs.endChapter),
     verseEnd: attrs.verseEnd === null ? null : Number(attrs.verseEnd),
   };
 }
@@ -152,9 +154,11 @@ export class ScriptureView implements NodeView {
       const passage = (await res.json()) as PassageResponse;
 
       if (style === "inline") {
-        // Quoted so it reads as part of the sentence, with the reference
-        // trailing in parentheses.
-        body.textContent = `“${passage.content}” (${passage.reference})`;
+        // Reference first, then the quote — see `inlineCitationText`.
+        body.textContent = inlineCitationText(
+          passage.reference,
+          passage.content,
+        );
       } else {
         // Verse numbers, poetry indentation, and small-caps preserved.
         renderPassageLines(body, passage.lines ?? [], false);

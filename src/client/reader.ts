@@ -89,6 +89,21 @@ interface PassageResponse {
 }
 
 /**
+ * An inline citation, as one run of text.
+ *
+ * The reference leads, because that is how the citation is actually spoken and
+ * written: "as it says in John 3:16, '…'". Trailing it in parentheses reads as
+ * a footnote — right for an academic quotation, wrong for a sentence a pastor
+ * is building, where the reference is the thing introducing the quote rather
+ * than a source noted afterwards.
+ *
+ * Shared by the reader and the editor's node view so the two cannot drift.
+ */
+export function inlineCitationText(reference: string, content: string): string {
+  return `${reference}, “${content}”`;
+}
+
+/**
  * Render passage lines, preserving verse numbers, poetry indentation, and the
  * small-caps divine name.
  */
@@ -178,7 +193,7 @@ async function fillScripture(
     if (superseded()) return;
 
     if (style === "inline") {
-      body.textContent = `“${passage.content}” (${passage.reference})`;
+      body.textContent = inlineCitationText(passage.reference, passage.content);
     } else {
       renderPassageLines(body, passage.lines ?? [], false);
       if (ref) ref.textContent = passage.reference;
