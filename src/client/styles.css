@@ -956,31 +956,76 @@ body {
 }
 
 /*
- * A brief pulse drawing the eye to the select, then stopping.
+ * A pulse drawing the eye to the select, then stopping.
  *
- * Three iterations, not infinite: this appears on every translation, which for
- * the audience that needs it is every visit. A control that never stops
+ * Deliberately emphatic. A subtler version — a 3px shadow at 35% opacity —
+ * went unnoticed, which for this message is the same as not showing it: the
+ * picker sits among several other controls, and on a phone the toolbar is
+ * busy. So the ring expands well clear of the control, the background flushes
+ * with accent colour, and the whole thing lifts slightly.
+ *
+ * Four iterations, not infinite. This appears on every translation, which for
+ * the audience that needs it is every visit, and a control that never stops
  * pulsing stops meaning anything and starts being an irritation.
  */
 @keyframes version-picker-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 transparent;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+    background: var(--surface);
+    transform: scale(1);
   }
-  50% {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+  35% {
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent) 0%, transparent);
+    background: color-mix(in srgb, var(--accent) 20%, var(--surface));
+    transform: scale(1.05);
+  }
+  70% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
+    background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+    transform: scale(1);
   }
 }
 
 .version-picker__wrapper.is-highlighted .version-picker {
   border-color: var(--accent);
-  animation: version-picker-pulse 1.4s ease-in-out 3;
+  /* Outlives the animation, so the control stays marked once the motion has
+     stopped — the reader may look over only after the pulsing has finished. */
+  box-shadow: 0 0 0 1px var(--accent);
+  animation: version-picker-pulse 1.1s ease-out 4;
 }
 
-/* Honour a stated preference for less motion: the border colour still marks
-   the control, so nothing is lost but the movement. */
+/* The notice slides in rather than appearing, carrying the eye from the
+   pulsing control to the words that explain it. */
+@keyframes version-notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.35rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.version-picker__wrapper.is-highlighted .version-notice {
+  animation: version-notice-in 320ms ease-out both;
+}
+
+/*
+ * Honour a stated preference for less motion.
+ *
+ * Nothing is lost but the movement: the accent border, the ring and the tinted
+ * background remain, so the control is still plainly marked out.
+ */
 @media (prefers-reduced-motion: reduce) {
   .version-picker__wrapper.is-highlighted .version-picker {
+    animation: none;
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+
+  .version-picker__wrapper.is-highlighted .version-notice {
     animation: none;
   }
 }
