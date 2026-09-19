@@ -803,6 +803,30 @@ body {
 /* Scripture -------------------------------------------------------------- */
 
 /* Serif for scripture, so quoted text reads distinctly from the notes. */
+/*
+ * Text the author marked as do-not-translate.
+ *
+ * A translator rewrites the text nodes *around* a `translate="no"` span and
+ * does not reliably keep the single space at the boundary, so a protected name
+ * ends up jammed against the translated word beside it — "theLORDsaid". The
+ * legacy viewer solved this by pulling the surrounding whitespace inside the
+ * span, where it became untranslatable too; here the whitespace belongs to the
+ * neighbouring text nodes rather than to the mark, so the gap is held open in
+ * layout instead.
+ *
+ * A margin, not `inline-block`. The latter looks like the obvious fix and is
+ * wrong: it stops the span wrapping internally, so a long marked phrase is
+ * forced onto one line and overflows the column. A margin holds the boundary
+ * open while leaving the text free to break normally.
+ *
+ * 0.12em is about an eighth of a space — invisible when the space survives,
+ * which is the common case, but enough to keep the words apart when it does
+ * not.
+ */
+.no-translate {
+  margin-inline: 0.12em;
+}
+
 .scripture__text {
   font-family: Georgia, "Noto Serif", "Times New Roman", serif;
 }
