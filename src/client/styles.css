@@ -729,30 +729,6 @@ body {
     padding: 0.375rem 0.5rem;
   }
 
-  /* A long version name would otherwise force the row wider than the screen.
-     The flex sizing belongs on the wrapper now that it is the flex item. */
-  .version-picker__wrapper {
-    max-width: 100%;
-    min-width: 0;
-    flex: 1 1 8rem;
-  }
-
-  .version-picker {
-    max-width: 100%;
-    min-width: 0;
-  }
-
-  /* Left-aligned on a phone, where the wrapper spans the row rather than
-     sitting at the end of it. */
-  .version-notice {
-    max-width: 100%;
-    text-align: start;
-  }
-
-  .version-picker__wrapper {
-    align-items: stretch;
-  }
-
   .account__name {
     max-width: 100%;
   }
@@ -1062,6 +1038,40 @@ body {
   padding: 0.3125rem 0.5rem;
   cursor: pointer;
   max-width: 14rem;
+}
+
+/*
+ * On a phone the picker takes a row of its own.
+ *
+ * This must come after the base rule above, not in the earlier narrow-screen
+ * block: same specificity, so whichever is written last wins, and `max-width:
+ * 14rem` above was quietly beating it.
+ *
+ * Sharing the row with the account control squeezed the select until the
+ * version name was cut off mid-word ("New Amharic Standar"), and left the
+ * notice running under the account name. Both need the full width — the
+ * version name is long in every language, and the notice is a sentence.
+ */
+@media (max-width: 40rem) {
+  .version-picker__wrapper {
+    flex: 1 0 100%;
+    max-width: 100%;
+    min-width: 0;
+    align-items: stretch;
+  }
+
+  .version-picker {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* Left-aligned, since the wrapper now spans the row rather than sitting at
+     the end of it. */
+  .version-notice {
+    max-width: 100%;
+    text-align: start;
+  }
 }
 
 .version-picker:disabled {

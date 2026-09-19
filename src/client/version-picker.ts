@@ -135,9 +135,9 @@ export function createVersionPicker(
       // is nonsense. Marking the whole sentence `translate="no"` would freeze
       // the wording we *want* translated, so only the name carries it.
       //
-      // The name ends the sentence rather than sitting mid-clause: it carries
-      // `.no-translate`, whose side margins would otherwise show as a gap
-      // before the following comma.
+      // The name goes at the end of the sentence, so only a full stop follows
+      // it — the less unprotected punctuation sits against the span, the less
+      // a translator can disturb.
       notice.append(
         document.createTextNode(
           "These Bible verses are not machine translated. They come from a " +
@@ -146,16 +146,18 @@ export function createVersionPicker(
       );
 
       if (name) {
-        notice.append(document.createTextNode(": "));
         const abbr = document.createElement("span");
         abbr.setAttribute("translate", "no");
-        // Deliberately not `.no-translate`: that class carries side margins to
-        // stop a translator welding protected text onto the words beside it,
-        // which matters in the author's prose. Here the surrounding wording is
-        // ours and fixed, so the guard buys nothing and shows as a gap before
-        // the full stop.
         abbr.className = "version-notice__name";
-        abbr.textContent = name;
+        // The separator lives *inside* the protected span, not in the text
+        // node before it. A translator rewrites the surrounding text nodes and
+        // does not reliably keep a trailing separator, which is how Amharic
+        // rendered as "ናቸውNASV" with the words welded together. Carried inside
+        // the span it is protected along with the name.
+        //
+        // A non-breaking space, so the name is never orphaned onto a line of
+        // its own.
+        abbr.textContent = `\u00a0${name}`;
         notice.append(abbr);
       }
 
