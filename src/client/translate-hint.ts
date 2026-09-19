@@ -2,10 +2,12 @@
  * Invites the reader to machine-translate the page.
  *
  * A page cannot start its own browser translation — no API exposes it — so
- * this points at the tool rather than pretending to do it. The whole product
- * rests on readers knowing they *can* translate: the notes are machine
- * translated while the scripture is swapped for a published translation in
- * that language, which is the thing worth advertising.
+ * this points at the tool rather than pretending to do it.
+ *
+ * The whole product rests on readers understanding the *split*: the notes are
+ * machine translated, while the scripture is swapped for a published
+ * translation made by human experts. Lead with that, not with the mechanics —
+ * a reader who thinks we machine-translate the Bible will rightly refuse.
  */
 
 import { placePanel } from "./position.ts";
@@ -34,18 +36,24 @@ export function mountTranslateHint(container: HTMLElement): () => void {
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-label", "Translate this page");
 
+  // Order matters here, and was got wrong once. Leading with "use your
+  // browser's translate option" made a reader understand the offer as "we will
+  // machine-translate the Bible for you" — an Amharic speaker answered "there's
+  // no need, there is already an Amharic Bible", which is both correct and
+  // exactly what this app does. The sentence answering her was third, by which
+  // point she had dismissed the feature. So the distinction leads, and the
+  // mechanics follow.
   panel.innerHTML = `
     <p class="translate-hint__lead">
-      These notes can be read in your own language.
+      The pastor's notes are machine translated. The Bible verses are not —
+      those are swapped for a published translation in your language, made by
+      human experts.
     </p>
     <p class="translate-hint__how">
-      Use your browser's translate option — in Chrome, the icon in the address
-      bar or <strong>right-click &rarr; Translate</strong>; on iPhone, the
+      To read the notes in your language, use your browser's translate option:
+      in Chrome, the icon in the address bar or
+      <strong>right-click &rarr; Translate</strong>; on iPhone, the
       <strong>aA</strong> menu in Safari.
-    </p>
-    <p class="translate-hint__note">
-      The Bible passages are not machine translated: they are swapped for a
-      published translation in that language, made by human experts.
     </p>
   `;
 

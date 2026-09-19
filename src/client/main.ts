@@ -54,13 +54,14 @@ function shell(): {
   el.className = "shell";
   el.innerHTML = `
     <header class="toolbar">
-      <button type="button" class="toolbar__brand" aria-describedby="tagline">
-        ScripturePad
-        <span class="tagline" id="tagline" role="tooltip">
-          Let machines translate your sermon notes, but leave Bible
-          translation to human experts
+      <div class="toolbar__brand">
+        <span class="toolbar__wordmark">ScripturePad</span>
+        <span class="tagline">
+          Share sermon notes your congregation can read in their own language —
+          with the Bible passages in a real published translation, not a
+          machine one
         </span>
-      </button>
+      </div>
       <div class="toolbar__lead"></div>
       <div class="toolbar__actions"></div>
     </header>

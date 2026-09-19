@@ -107,7 +107,10 @@ export function createNotesPanel(
           window.location.pathname,
         )}`;
         link.textContent = "Sign in";
-        prompt.append(link, document.createTextNode(" to see your saved notes."));
+        prompt.append(
+          link,
+          document.createTextNode(" to see your saved notes."),
+        );
         body.append(prompt);
         return;
       }
@@ -141,8 +144,13 @@ export function createNotesPanel(
 
       const link = document.createElement("a");
       link.className = "notes-panel__item";
-      link.href = `/${note.id}/edit`;
-      // Mark the note being edited so the panel orients the reader.
+      // Opens the note as a reader sees it, not in the editor. Most visits to
+      // an old note are to read or re-share it, and view mode is the honest
+      // preview of what the congregation gets. The owner's "Edit" button is
+      // right there in the toolbar, so the editor is one click away — whereas
+      // landing in an editor risks stray keystrokes in a saved note.
+      link.href = `/${note.id}`;
+      // Mark the open note so the panel orients the reader.
       if (note.id === currentId) {
         link.classList.add("notes-panel__item--current");
         link.setAttribute("aria-current", "page");
