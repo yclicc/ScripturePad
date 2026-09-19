@@ -31,4 +31,22 @@ describe("baseLanguage", () => {
   it("falls back to English for empty input", () => {
     expect(baseLanguage("")).toBe("en");
   });
+
+  it("modernises the ISO codes translators still emit", () => {
+    // Chrome's translator writes Google's superseded spellings into
+    // `<html lang>`. The Bible API knows only the modern codes, so leaving
+    // these unmapped finds no versions and silently leaves scripture in the
+    // original language.
+    expect(baseLanguage("iw")).toBe("he");
+    expect(baseLanguage("jw")).toBe("jv");
+    expect(baseLanguage("in")).toBe("id");
+    expect(baseLanguage("tl")).toBe("fil");
+  });
+
+  it("still handles Chinese after legacy remapping", () => {
+    // Translators write zh-CN and zh-TW; the remapping must not disturb the
+    // script distinction, which is the one that actually changes the Bible.
+    expect(baseLanguage("zh-CN")).toBe("zh");
+    expect(baseLanguage("zh-TW")).toBe("zh-Hant-TW");
+  });
 });

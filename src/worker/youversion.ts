@@ -1,4 +1,8 @@
-import { ApiClient, BibleClient } from "@youversion/platform-core";
+import {
+  ApiClient,
+  BibleClient,
+  getHttpStatus,
+} from "@youversion/platform-core";
 import type { Env } from "./env.ts";
 import {
   linesToText,
@@ -275,17 +279,28 @@ export async function listVersions(
   //
   // A language with no Bibles returns HTTP 204 with an empty body, which the
   // SDK surfaces as a missing collection rather than an empty one.
+  //
+  // Only that case may yield an empty list. Anything else — above all a 429,
+  // whose penalty is a five-minute lockout — must throw rather than resolve to
+  // "no Bibles in this language": an empty result gets cached for a week, so
+  // one rate-limited request would blank a language until the TTL expired.
+  // Polish looked genuinely unavailable for exactly this reason.
   const collection = await bible
     .getVersions(languageRange, undefined, { all_available: true })
-    .catch(() => null);
+    .catch((error: unknown) => {
+      if (getHttpStatus(error) === 204) return null;
+      throw error;
+    });
 
-  const summaries: VersionSummary[] = (collection?.data ?? []).map((version) => ({
-    id: version.id,
-    title: version.title,
-    abbreviation: version.abbreviation,
-    languageTag: version.language_tag,
-    copyright: version.copyright ?? null,
-  }));
+  const summaries: VersionSummary[] = (collection?.data ?? []).map(
+    (version) => ({
+      id: version.id,
+      title: version.title,
+      abbreviation: version.abbreviation,
+      languageTag: version.language_tag,
+      copyright: version.copyright ?? null,
+    }),
+  );
 
   // Add anything the filter index omits, fetched by id. Failures are ignored:
   // a missing extra should not empty an otherwise good list.

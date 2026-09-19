@@ -204,8 +204,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const lang =
-    existing?.sourceLang ?? navigator.language.split("-")[0] ?? "en";
+  const lang = existing?.sourceLang ?? navigator.language.split("-")[0] ?? "en";
 
   // A first-time reader inherits the version the author wrote against; their
   // own explicit choice wins once made.
@@ -254,6 +253,9 @@ async function main(): Promise<void> {
         language,
         getPreferredVersion(language),
       );
+      // No Bible in that language on the platform. The passages stay as they
+      // are, which is the honest outcome: a published translation in the
+      // previous language beats a machine translation of scripture.
       if (!version || version.id === versionId) return;
 
       versionId = version.id;

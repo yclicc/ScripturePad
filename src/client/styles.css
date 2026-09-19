@@ -982,7 +982,6 @@ body {
   margin-top: 0.15em;
 }
 
-
 /*
  * `is-showing` is set from JS with a short close delay, so the popover
  * survives the moment the pointer spends between the reference and the panel.

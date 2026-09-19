@@ -12,6 +12,98 @@ implementation (Deno + Deno Deploy + Bible Brain/DBT API + Markdown/CodeMirror)
 is preserved on the `legacy-deno-biblebrain` branch for reference. Nothing on
 `master` carries over from it.
 
+## IN PROGRESS — uncommitted work as of 2026-09-19
+
+**There are uncommitted changes on `master`.** They are verified green: 61
+tests, `tsc --noEmit`, and `npm run build` all pass, and `GET
+/api/versions?language=pl` was confirmed live to return 5 Polish versions.
+
+### The Google Translate widget was tried and abandoned
+
+An in-page language picker driving Google's website-translation widget was
+built, then **removed**. Do not rebuild it. Two independent reasons:
+
+1. **Google has announced the Website Translator widget is unsupported from
+   1 October 2026**, directing anyone needing ongoing automated translation to
+   the Cloud Translation API. (Sourced from third-party reporting; Google's own
+   notice page 404s. Worth re-checking before acting on the date, but the
+   direction of travel is not in doubt.) Since 2019/2020 the widget has also
+   been licensed for **non-commercial use only** — ScripturePad qualifies, but
+   the licence lapses if it ever monetises.
+2. Driving it requires setting `.value` on Google's injected
+   `.goog-te-combo` and dispatching `change` — an undocumented reach into
+   Google's own markup. Not a ToS violation (it circumvents no access control
+   and is the universal community pattern), but brittle, and it was the direct
+   cause of the "pick French, get Polish" bug: assigning an unknown value to a
+   `<select>` is a silent no-op, so the previous selection stuck.
+
+The root fault was that `TranslateElement` was constructed without
+`includedLanguages`, so Google built its own combo and our static ~104-language
+table was an independent guess at its contents. Fixing that was possible, but
+not worth doing for a product with weeks of support left.
+
+**The reader therefore uses the browser's own translator**, as before — which
+is also the more robust path: it sets `<html lang>` (the widget did not), needs
+no third-party script, and keeps the privacy position simple. `translate-hint.ts`
+is back to pointing readers at it.
+
+### What was kept, because it is independently valuable
+
+These fixes came out of the same session but have nothing to do with the
+widget. They are the bulk of the remaining diff:
+
+- **Reader/translator race** (`reader.ts`) — `translate="no"` on
+  `.scripture__text`, in-place passage updates via a `WeakMap` of citations
+  instead of `container.innerHTML = ""`, and an `inFlight` version stamp that
+  drops superseded responses. **User-confirmed working.** The write-up in
+  "Passages must carry `translate='no'`" below still applies in full: it is
+  about any machine translator, not specifically the widget.
+- **`listVersions` cached a 429 as "no Bibles in this language"** for a week
+  (`youversion.ts`) — the reason Polish looked empty. Only a genuine HTTP 204
+  may now produce an empty list; anything else throws so the caller shows an
+  error and the next request retries. **Confirmed live: Polish returns 5
+  versions.**
+- **`LEGACY_CODES`** (`language.ts`) — `iw`/`jw`/`in`/`tl` mapped to modern
+  codes. Still needed: Chrome's translator writes those superseded spellings
+  into `<html lang>`, and the Bible API knows only the modern ones. Unit
+  tested.
+
+Removed along with the widget: `google-translate.ts`, the language picker in
+`translate-hint.ts`, `GET /api/languages` and `TRANSLATE_LANGUAGES`, the
+`googtrans` cookie reading and 500ms poll in `watchPageLanguage`, and the
+`.skiptranslate`/`body { top: 0 }` CSS that countered Google's injected banner.
+The user's `blogger google translate code.txt` reference file is also deleted.
+
+### Next step
+
+Commit this. It is verified and self-consistent.
+
+### Open items, not yet started
+
+Recorded here because the session todo list does not persist. Roughly in
+priority order:
+
+- **BUG**: on mobile, after a scripture quote at the end of a document, it is
+  not possible to add text below it.
+- **BUG**: the Bold/Italic toolbar buttons on mobile stay visually highlighted
+  after the mark has been toggled off.
+- **BUG**: machine translation does not leave proper spacing around
+  `translate="no"` segments. `legacy-deno-biblebrain` solved this before —
+  check how the old viewer handled it.
+- **BUG**: YouVersion sign-in is clunky when the user is not already logged
+  into YouVersion — it does not reliably redirect back to ScripturePad,
+  landing on a logged-in YouVersion homepage instead; the user then has to
+  click "Login" a second time on ScripturePad. Possibly worth trying the auth
+  step in a new tab; needs investigation rather than a known fix.
+- **FEATURE**: auto-detect plain-text hyperlinks while typing/pasting and turn
+  them into real links.
+- **FEATURE (lower priority)**: make it easier for a first-time visitor to
+  work out **what the site actually does and how to use it**. Right now the
+  landing experience assumes you already know. Wants a short explanation of
+  the premise (write sermon notes, cite scripture, share one link, readers get
+  it in their language with real published translations) and enough guidance
+  to get someone to their first note. Tackle after the bugs above.
+
 ## The Rewrite: What Is Changing And Why
 
 | Area | Was | Now |
@@ -103,9 +195,27 @@ Verified against the live API with a real app key:
   The legacy app's hand-written ISO-639-3 remapping (`zh-CN`→`cmn`, `fa`→`pes`,
   `ara`→`arb`) is **not needed** — pass the browser language tag straight
   through.
-- **`GET /v1/languages`** exists and returns `display_names` for each language
-  in every other language, so a language picker can show each option in its own
-  script without shipping a translation table.
+- **`GET /v1/languages`** returns `display_names`, so a picker can show each
+  option in its own script without shipping a translation table. But read the
+  shape carefully: `display_names` on a language record maps *locale → **this**
+  language's name in that locale* — the `sw` record's `he` key is "Swahili in
+  Hebrew", not "Hebrew". **No single record can name every language**, so
+  self-names cost one request each. There are 8,583 languages, so fetch only
+  the set actually offered and cache it (`listLanguages`, a week's TTL).
+- `page_size=*` has two undocumented constraints, both returning 400 with a
+  message rather than the data: it **requires `fields[]`** (literal bracket, as
+  with `language_ranges[]` — plain `fields=` is rejected), and that list may
+  hold **at most three** entries. Ordinary paging caps `page_size` at 99.
+- The SDK's `Language` type **omits `localized_name`** even though the API
+  returns it, and zod strips unknown keys — so it is unreachable through the
+  SDK. `display_names["en"]` gives the same English name and is in the schema.
+- Traditional Chinese needs **two different identifiers**: `zh-Hant` for
+  `GET /v1/languages/{id}` (`zh-Hant-TW` returns nothing there), but
+  `zh-Hant-TW` for the Bible `language_ranges[]` filter. They are not
+  interchangeable — see `GOOGLE_LANGUAGES` and `baseLanguage()`.
+- `default_bible_id` is **not** a reliable "has a Bible" signal: French and
+  Urdu both report `null` while plainly having Bibles on the platform. Do not
+  use it to decide what to show a reader.
 - Version metadata carries `copyright` directly (BSB 3034 returns
   `"Public Domain"`), so attribution needs no extra request.
 - **Passage ranges may not cross a chapter boundary.** The API accepts
@@ -122,20 +232,38 @@ Verified against the live API with a real app key:
   response as JSON without checking for 204 throws.
 - **Rate limiting is aggressive and the penalty is long.** A handful of quick
   requests returns `429 Rate limit exceeded` with **`retry-after: 300`** — a
-  five-minute lockout. No header advertises the actual quota. Consequences:
+  five-minute lockout. `retry-after` is a floor, not a promise: after a bulk
+  sweep of ~100 requests the key stayed locked across three probes spanning
+  roughly fifteen minutes, so a heavy burst appears to extend the penalty well
+  beyond the advertised value. No header advertises the actual quota.
+  Consequences:
   aggressive KV caching is essential, multi-chapter spans are fetched
   **sequentially rather than with `Promise.all`**, and any bulk probing during
   development should be spaced out or it will lock the key for everyone.
+- **Never cache an empty result that came from an error.** `listVersions`
+  caught every failure, returned `[]`, and cached it *for a week* — so a single
+  429 made a language look permanently Bible-less. Polish appeared to have no
+  translations for exactly this reason; it has several. Only a genuine **204**
+  may produce an empty list. Anything else must throw, so the caller shows an
+  error and the next request retries. The general rule: a cache entry should
+  never be able to record a transient failure as a fact.
+- The same reasoning killed a per-request language-name fetch. Naming ~100
+  languages meant ~100 sequential calls on a cold cache, which reliably tripped
+  the 429 — and the lockout it caused is why Polish could not be re-verified
+  for the rest of that session. That code is gone with the translate picker,
+  but the rule stands: **never fan out one API call per item** over a list of
+  any size. Bake effectively-static data into a table instead.
 
-### Known issue: Traditional Chinese
+### Traditional Chinese (resolved)
 
-Traditional Chinese Bibles exist (ids **312** and **1392**, tagged
-`zh-Hant-TW`), but filtering `language_ranges[]` on `zh-Hant-TW`, `zh-Hant`,
-and `zh-TW` all returned empty during development, while plain `zh` returns
-three Simplified versions. Verification was blocked by the rate limit above and
-is **unfinished** — `baseLanguage()` currently maps Traditional locales to
-`zh-Hant-TW` on the assumption the filter works once un-throttled. If it does
-not, fetch those two ids directly rather than relying on the language filter.
+Traditional Chinese Bibles (ids **312** and **1392**, tagged `zh-Hant-TW`) did
+not come back from `language_ranges[]` on any spelling, while plain `zh`
+returns Simplified versions. Rather than rely on the filter index, those ids
+are injected directly by `UNINDEXED_VERSIONS` in `youversion.ts`, keyed on
+`zh-hant-tw`; `baseLanguage()` maps Traditional locales onto that tag. This is
+verified working. The general lesson is worth keeping: **a version missing from
+the language filter can still be fetched by id**, so `UNINDEXED_VERSIONS` is
+the escape hatch if another language turns out to be under-indexed.
 
 The JavaScript SDK (`@youversion/platform-core`) wraps this:
 
@@ -227,8 +355,54 @@ user requested. Both of ours qualify:
 | `sp_pkce` | CSRF/PKCE state during sign-in | 10 minutes |
 
 Neither profiles users, tracks across sites, nor feeds analytics. **Adding any
-analytics or embedded third-party content changes this** and would require a
-consent banner.
+analytics or unconditionally embedded third-party content changes this** and
+would require a consent banner.
+
+#### There is currently no third-party content at all
+
+An in-page Google Translate widget was built and then removed (see "IN
+PROGRESS" above). With it went the only third-party script on the site, so the
+table above is the complete cookie inventory and the no-banner position holds
+comfortably.
+
+Readers translate using **their browser's own translator**, which is entirely
+client-side from our perspective: no script of Google's loads, no third-party
+cookie is set, and the reader's IP is never disclosed to a third party by us.
+
+If an embedded translation widget is ever reconsidered, the gating rules that
+made it lawful are worth recovering from git history: the script had to load
+**only on an explicit language choice**, never on page load, with the panel
+stating what that choice did beforehand. That gating *was* the legal basis —
+moving the script to page load or a preload hint would have required a consent
+banner.
+
+One detail outlives the widget: **Google's stack uses superseded ISO codes** —
+`iw` for Hebrew, `jw` for Javanese, `in` for Indonesian, `tl` for Filipino —
+and Chrome writes them into `<html lang>` when it translates. The Bible API
+knows only the modern ones, so `baseLanguage()` remaps them via
+`LEGACY_CODES`; without that, those languages silently find no versions.
+
+#### Passages must carry `translate="no"`, and must never be re-rendered
+
+Switching version used to rebuild the whole reader with
+`container.innerHTML = ""`. Against an active translator that is a race: it is
+concurrently walking the same DOM replacing text nodes, so tearing the tree
+down mid-flight left the page **partly translated and partly not, differently
+each time** — which is what "it doesn't reliably work" looks like. Worse, the
+passage body had no `translate="no"`, so the translator was machine-translating
+our English scripture into French while we were fetching the real French Bible
+for the same slot; whichever finished last won.
+
+Both halves matter, and neither is sufficient alone:
+
+- `.scripture__text` carries **`translate="no"`**. It already holds a published
+  translation in the reader's language, so translating it yields a machine
+  translation *of* a translation.
+- A version change updates each `.scripture__text` **in place** and touches
+  nothing else, leaving the translated prose around it undisturbed. Citations
+  are tracked in a `WeakMap` keyed on the element for exactly this.
+- Responses are guarded by an `inFlight` version stamp, so switching language
+  twice quickly cannot land an older passage after a newer one.
 
 GDPR still applies to the personal data held, which is deliberately minimal:
 

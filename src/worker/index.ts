@@ -48,8 +48,9 @@ app.post("/auth/signout", async (c) => signOut(c.req.raw, c.env));
 app.get("/api/me", (c) => {
   const user = c.get("user");
   return c.json(
-    user ? { signedIn: true, name: user.displayName, avatar: user.avatarUrl }
-         : { signedIn: false },
+    user
+      ? { signedIn: true, name: user.displayName, avatar: user.avatarUrl }
+      : { signedIn: false },
   );
 });
 
@@ -58,7 +59,9 @@ app.get("/api/me", (c) => {
  *
  * Populated by middleware so every route sees the same resolved identity.
  */
-function getUser(c: { get: (key: "user") => SessionUser | null }): string | null {
+function getUser(c: {
+  get: (key: "user") => SessionUser | null;
+}): string | null {
   return c.get("user")?.yvpId ?? null;
 }
 

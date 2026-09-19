@@ -40,11 +40,26 @@ const CHINESE_TAGS: Record<string, string> = {
   hans: "zh",
 };
 
+/**
+ * Superseded ISO codes that translators still emit.
+ *
+ * Google's stack uses these spellings, and they reach us through `<html lang>`
+ * when Chrome translates the page. The Bible API knows only the modern codes,
+ * so an unmapped `iw` would silently find no versions.
+ */
+const LEGACY_CODES: Record<string, string> = {
+  iw: "he",
+  jw: "jv",
+  in: "id",
+  tl: "fil",
+};
+
 export function baseLanguage(tag: string): string {
   const lower = tag.toLowerCase();
   const parts = lower.split("-");
   // Splitting "" yields [""], not [], so an empty primary needs handling.
-  const primary = parts[0] || "en";
+  const raw = parts[0] || "en";
+  const primary = LEGACY_CODES[raw] ?? raw;
 
   if (primary === "zh") {
     // Match on script or region, whichever the browser supplied.

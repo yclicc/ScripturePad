@@ -61,7 +61,9 @@ function referenceFrom(attrs: Record<string, unknown>): ScriptureReference {
     verseStart: attrs.verseStart == null ? null : Number(attrs.verseStart),
     // Falls back to `chapter` for citations stored before ranges could span.
     endChapter:
-      attrs.endChapter == null ? Number(attrs.chapter) : Number(attrs.endChapter),
+      attrs.endChapter == null
+        ? Number(attrs.chapter)
+        : Number(attrs.endChapter),
     verseEnd: attrs.verseEnd == null ? null : Number(attrs.verseEnd),
   };
 }
@@ -134,6 +136,16 @@ export function renderPassageLines(
   }
 }
 
+/**
+ * The version each citation is currently loading.
+ *
+ * Passages resolve at different speeds, so switching language twice in quick
+ * succession can land an older response after a newer one and leave a stray
+ * passage in the previous language. Each element remembers the newest request
+ * and discards anything that is not it.
+ */
+const inFlight = new WeakMap<HTMLElement, number>();
+
 async function fillScripture(
   el: HTMLElement,
   reference: ScriptureReference,
@@ -144,12 +156,18 @@ async function fillScripture(
   const ref = el.querySelector<HTMLElement>(".scripture__ref");
   if (!body) return;
 
+  inFlight.set(el, versionId);
+  /** True when a newer request superseded this one while it was in flight. */
+  const superseded = () => inFlight.get(el) !== versionId;
+
   try {
     const params = new URLSearchParams({
       ref: toQueryRef(reference),
       version: String(versionId),
     });
     const res = await fetch(`/api/passage?${params}`);
+    if (superseded()) return;
+
     if (!res.ok) {
       body.textContent = "Could not load this passage.";
       body.classList.add("scripture__text--error");
@@ -157,6 +175,7 @@ async function fillScripture(
     }
 
     const passage = (await res.json()) as PassageResponse;
+    if (superseded()) return;
 
     if (style === "inline") {
       body.textContent = `“${passage.content}” (${passage.reference})`;
@@ -172,10 +191,22 @@ async function fillScripture(
       copyright: passage.copyright,
     });
   } catch {
+    if (superseded()) return;
     body.textContent = "Could not load this passage.";
     body.classList.add("scripture__text--error");
   }
 }
+
+/**
+ * What each rendered citation cites.
+ *
+ * Held beside the element rather than in `data-` attributes so a machine
+ * translator cannot disturb it, and weakly so detached nodes are collectable.
+ */
+const citationAttrs = new WeakMap<
+  HTMLElement,
+  { reference: ScriptureReference; style: string }
+>();
 
 function renderNode(
   node: PMNode,
@@ -242,12 +273,20 @@ function renderNode(
 
       const body = document.createElement("span");
       body.className = "scripture__text";
+      // Never machine-translate a passage. The text here is already a
+      // published translation fetched in the reader's language, so letting a
+      // translator loose on it produces a machine translation *of* a
+      // translation — precisely what this product exists to avoid. It also
+      // ends the race between our swap and the translator's rewrite: whichever
+      // ran last used to decide what the reader saw.
+      body.setAttribute("translate", "no");
       body.textContent = "…";
       el.append(body);
 
       if (style === "popover") el.tabIndex = 0;
 
       const reference = referenceFrom(attrs);
+      citationAttrs.set(el, { reference, style });
       pending.push(() => fillScripture(el, reference, style, versionId));
       return el;
     }
@@ -281,13 +320,46 @@ export function renderDocument(
   doc: PMNode,
   versionId: number,
 ): (nextVersionId: number) => void {
-  const render = (version: number) => {
-    container.innerHTML = "";
-    const pending: Array<() => Promise<void>> = [];
-    appendChildren(container, doc.content, pending, version);
-    for (const load of pending) void load();
-  };
+  /**
+   * Every citation in the document, kept so a version change can refill them
+   * without rebuilding the page.
+   */
+  const citations: Array<{
+    el: HTMLElement;
+    reference: ScriptureReference;
+    style: string;
+  }> = [];
 
-  render(versionId);
-  return render;
+  const pending: Array<() => Promise<void>> = [];
+  appendChildren(container, doc.content, pending, versionId);
+  for (const load of pending) void load();
+
+  // Collected after the structure is in the DOM, in document order.
+  for (const el of container.querySelectorAll<HTMLElement>(".scripture")) {
+    const attrs = citationAttrs.get(el);
+    if (attrs) citations.push({ el, ...attrs });
+  }
+
+  /**
+   * Swap every passage to a different version, **in place**.
+   *
+   * Emphatically not a re-render. Rebuilding `container` fights whatever
+   * machine translator is active: it is concurrently walking this same DOM
+   * replacing text nodes, so tearing the tree down mid-flight leaves the page
+   * partly translated, partly not, differently on each attempt — which reads
+   * as "sometimes it works". Only `.scripture__text` is touched, so the
+   * translated prose around each citation survives untouched.
+   */
+  return (nextVersionId: number) => {
+    for (const { el, reference, style } of citations) {
+      const body = el.querySelector<HTMLElement>(".scripture__text");
+      if (body) {
+        // Cleared so a translator does not keep showing a stale translation of
+        // the previous version's text while the new one is in flight.
+        body.textContent = "…";
+        body.classList.remove("scripture__text--error");
+      }
+      void fillScripture(el, reference, style, nextVersionId);
+    }
+  };
 }
