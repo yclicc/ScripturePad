@@ -12,11 +12,17 @@ implementation (Deno + Deno Deploy + Bible Brain/DBT API + Markdown/CodeMirror)
 is preserved on the `legacy-deno-biblebrain` branch for reference. Nothing on
 `master` carries over from it.
 
-## IN PROGRESS — uncommitted work as of 2026-09-19
+## RECENT WORK — committed 2026-09-19
 
-**There are uncommitted changes on `master`.** They are verified green: 61
-tests, `tsc --noEmit`, and `npm run build` all pass, and `GET
-/api/versions?language=pl` was confirmed live to return 5 Polish versions.
+Everything below is committed and verified green (66 tests, `tsc --noEmit`,
+`npm run build`). Four commits, most recent last:
+
+1. `d8901e3` — reader/translator race, the 429-cached-as-empty fix, and
+   `LEGACY_CODES`.
+2. `4fab7cc` — mobile: writing past a document-final citation, and real
+   toolbar active state.
+3. `6f6dd69` — spacing around `translate="no"` text.
+4. `b7a4122` — `require_user_interaction` on sign-in.
 
 ### The Google Translate widget was tried and abandoned
 
@@ -42,59 +48,42 @@ The root fault was that `TranslateElement` was constructed without
 table was an independent guess at its contents. Fixing that was possible, but
 not worth doing for a product with weeks of support left.
 
-**The reader therefore uses the browser's own translator**, as before — which
-is also the more robust path: it sets `<html lang>` (the widget did not), needs
-no third-party script, and keeps the privacy position simple. `translate-hint.ts`
-is back to pointing readers at it.
+**The reader therefore uses the browser's own translator**, which is also the
+more robust path: it sets `<html lang>` (the widget did not), needs no
+third-party script, and keeps the privacy position simple — there is now no
+third-party content on the site at all.
 
-### What was kept, because it is independently valuable
+Removed with it: `google-translate.ts`, the picker in `translate-hint.ts`,
+`GET /api/languages` and `TRANSLATE_LANGUAGES`, the `googtrans` cookie reading
+and 500ms poll in `watchPageLanguage`, and the `.skiptranslate`/`body {
+top: 0 }` CSS that countered Google's injected banner.
 
-These fixes came out of the same session but have nothing to do with the
-widget. They are the bulk of the remaining diff:
+### Two findings worth keeping
 
-- **Reader/translator race** (`reader.ts`) — `translate="no"` on
-  `.scripture__text`, in-place passage updates via a `WeakMap` of citations
-  instead of `container.innerHTML = ""`, and an `inFlight` version stamp that
-  drops superseded responses. **User-confirmed working.** The write-up in
-  "Passages must carry `translate='no'`" below still applies in full: it is
-  about any machine translator, not specifically the widget.
-- **`listVersions` cached a 429 as "no Bibles in this language"** for a week
-  (`youversion.ts`) — the reason Polish looked empty. Only a genuine HTTP 204
-  may now produce an empty list; anything else throws so the caller shows an
-  error and the next request retries. **Confirmed live: Polish returns 5
-  versions.**
-- **`LEGACY_CODES`** (`language.ts`) — `iw`/`jw`/`in`/`tl` mapped to modern
-  codes. Still needed: Chrome's translator writes those superseded spellings
-  into `<html lang>`, and the Bible API knows only the modern ones. Unit
-  tested.
+**Polish is fixed and confirmed.** `listVersions` used to catch every failure
+and return `[]`, which was then cached for a week — so a single 429 recorded
+"no Bibles in this language" as a fact. Only a genuine 204 may now produce an
+empty list. `GET /api/versions?language=pl` returns 5 versions live.
 
-Removed along with the widget: `google-translate.ts`, the language picker in
-`translate-hint.ts`, `GET /api/languages` and `TRANSLATE_LANGUAGES`, the
-`googtrans` cookie reading and 500ms poll in `watchPageLanguage`, and the
-`.skiptranslate`/`body { top: 0 }` CSS that countered Google's injected banner.
-The user's `blogger google translate code.txt` reference file is also deleted.
-
-### Next step
-
-Commit this. It is verified and self-consistent.
+**YouVersion mis-encodes its own authorize redirect.** `/auth/authorize` nests
+the next hop in `redirect_uri` without re-encoding, so the space in
+"openid profile" is emitted raw — illegal in a URL. Browsers recover;
+truncating clients lose every parameter after it. `final_callback_uri` sits
+before the space, which is why sign-in works at all. `scope=openid` alone comes
+back correctly encoded, isolating the cause. See the comment in `auth.ts`.
 
 ### Open items, not yet started
 
 Recorded here because the session todo list does not persist. Roughly in
 priority order:
 
-- **BUG**: on mobile, after a scripture quote at the end of a document, it is
-  not possible to add text below it.
-- **BUG**: the Bold/Italic toolbar buttons on mobile stay visually highlighted
-  after the mark has been toggled off.
-- **BUG**: machine translation does not leave proper spacing around
-  `translate="no"` segments. `legacy-deno-biblebrain` solved this before —
-  check how the old viewer handled it.
-- **BUG**: YouVersion sign-in is clunky when the user is not already logged
-  into YouVersion — it does not reliably redirect back to ScripturePad,
-  landing on a logged-in YouVersion homepage instead; the user then has to
-  click "Login" a second time on ScripturePad. Possibly worth trying the auth
-  step in a new tab; needs investigation rather than a known fix.
+- **BUG**: YouVersion sign-in when the user is not already logged in. The junk
+  `require_user_interaction=null` is fixed, and the redirect chain now reaches
+  `login.youversion.com` correctly with the right callback — but **whether the
+  two-click symptom is actually gone is unconfirmed**: driving the flow end to
+  end needs real credentials on a logged-out phone. Re-test before assuming.
+  If it persists, the provider's raw-space bug above is the thing to suspect,
+  and trying the auth step in a new tab is the user's suggested workaround.
 - **FEATURE**: auto-detect plain-text hyperlinks while typing/pasting and turn
   them into real links.
 - **FEATURE (lower priority)**: make it easier for a first-time visitor to
@@ -102,7 +91,7 @@ priority order:
   landing experience assumes you already know. Wants a short explanation of
   the premise (write sermon notes, cite scripture, share one link, readers get
   it in their language with real published translations) and enough guidance
-  to get someone to their first note. Tackle after the bugs above.
+  to get someone to their first note. Tackle after the bug above.
 
 ## The Rewrite: What Is Changing And Why
 
