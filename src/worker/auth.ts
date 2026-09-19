@@ -23,7 +23,11 @@ const CALLBACK_URL = "https://api.youversion.com/auth/callback";
  */
 function clientId(env: Env): string {
   const override = env.YOUVERSION_CLIENT_ID?.trim();
-  if (override && override !== "your-client-id" && !override.startsWith("pending")) {
+  if (
+    override &&
+    override !== "your-client-id" &&
+    !override.startsWith("pending")
+  ) {
     return override;
   }
   return env.YOUVERSION_APP_KEY;
@@ -132,8 +136,32 @@ export async function startSignIn(
   authorizeUrl.searchParams.set("scope", "openid profile");
   authorizeUrl.searchParams.set("state", state);
   authorizeUrl.searchParams.set("nonce", nonce);
-  authorizeUrl.searchParams.set("code_challenge", await codeChallenge(codeVerifier));
+  authorizeUrl.searchParams.set(
+    "code_challenge",
+    await codeChallenge(codeVerifier),
+  );
   authorizeUrl.searchParams.set("code_challenge_method", "S256");
+  // Sent explicitly rather than left to default, which YouVersion renders as
+  // the *string* "null".
+  //
+  // Context, because this interacts with a provider bug worth knowing about.
+  // `/auth/authorize` sends a logged-out user to login.youversion.com with the
+  // next hop nested in `redirect_uri`, and builds that nested URL without
+  // re-encoding — so the space in "openid profile" is emitted raw:
+  //
+  //   ...consent?state=…&final_callback_uri=…&scope=openid profile&require_user_interaction=…
+  //
+  // A raw space is not legal in a URL. Browsers percent-encode it and recover,
+  // but any client that treats it as the end of the URL loses everything after
+  // it. `final_callback_uri` — the part that actually brings the user back
+  // here — sits *before* the space and survives either way, which is why
+  // sign-in works at all. Verified live: with `scope=openid` alone the same
+  // URL comes back correctly encoded, isolating the space as the cause.
+  //
+  // We cannot fix their encoding, and the alternatives are worse: dropping
+  // `profile` loses the display name, and `%2B`/`%2C` separators are rejected
+  // outright (the scope vanishes entirely).
+  authorizeUrl.searchParams.set("require_user_interaction", "true");
 
   const pkce: PkceState = { codeVerifier, state, nonce, returnTo };
 
@@ -256,7 +284,8 @@ export async function handleCallback(
   }
 
   const raw = readCookie(request, PKCE_COOKIE);
-  if (!raw) return new Response("Sign-in expired. Please try again.", { status: 400 });
+  if (!raw)
+    return new Response("Sign-in expired. Please try again.", { status: 400 });
 
   let pkce: PkceState;
   try {
@@ -387,10 +416,7 @@ export async function handleCallback(
     cookie(SESSION_COOKIE, sessionId, SESSION_TTL_SECONDS, isSecure(request)),
   );
   // Clear the PKCE cookie; it is single-use.
-  headers.append(
-    "set-cookie",
-    cookie(PKCE_COOKIE, "", 0, isSecure(request)),
-  );
+  headers.append("set-cookie", cookie(PKCE_COOKIE, "", 0, isSecure(request)));
 
   return new Response(null, { status: 302, headers });
 }
