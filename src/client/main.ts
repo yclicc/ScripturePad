@@ -258,12 +258,19 @@ async function main(): Promise<void> {
       // No Bible in that language on the platform. The passages stay as they
       // are, which is the honest outcome: a published translation in the
       // previous language beats a machine translation of scripture.
-      if (!version || version.id === versionId) return;
+      if (!version) return;
 
-      versionId = version.id;
-      clearCitedVersions();
-      rerender(version.id);
-      picker.setLanguage(language, version.id);
+      if (version.id !== versionId) {
+        versionId = version.id;
+        clearCitedVersions();
+        rerender(version.id);
+        picker.setLanguage(language, version.id);
+      }
+
+      // Said even when the version did not change — the reader still just
+      // translated the page, and still needs to know the verses did not come
+      // from the machine that translated everything else.
+      void picker.announceAutoSelection(language, version.id);
     });
 
     if (existing.canEdit) {
