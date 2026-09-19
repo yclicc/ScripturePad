@@ -194,9 +194,14 @@ body {
   min-width: 2rem;
 }
 
-.toolbar button:hover,
-.toolbar .button:hover {
-  background: var(--bg);
+/* Only real pointers get hover. A tap leaves `:hover` stuck on the button
+   until the next tap elsewhere, so on a phone Bold looked permanently on —
+   indistinguishable from the active state below, and wrong far more often. */
+@media (hover: hover) {
+  .toolbar button:hover,
+  .toolbar .button:hover {
+    background: var(--bg);
+  }
 }
 
 .toolbar button[aria-pressed="true"] {

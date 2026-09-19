@@ -1,6 +1,8 @@
 import { toggleMark, setBlockType } from "prosemirror-commands";
 import { wrapInList } from "prosemirror-schema-list";
 import type { EditorView } from "prosemirror-view";
+import type { MarkType } from "prosemirror-model";
+import type { EditorState } from "prosemirror-state";
 import { schema } from "./schema.ts";
 import { parseReference } from "../shared/references.ts";
 import { insertScripture } from "./detect.ts";
@@ -23,6 +25,21 @@ interface ToolbarOptions {
 export interface Toolbar {
   /** Reflect save progress in the button and status text. */
   setSaveState: (state: SaveState, message?: string) => void;
+  /** Re-read the selection and light the buttons that apply to it. */
+  syncState: () => void;
+}
+
+/**
+ * Whether a mark applies to the current selection.
+ *
+ * An empty selection asks `storedMarks` first: having just pressed Bold with
+ * no selection, the mark is pending on the next keystroke and not yet in the
+ * document, but the button should already read as on.
+ */
+function markActive(state: EditorState, type: MarkType): boolean {
+  const { from, $from, to, empty } = state.selection;
+  if (empty) return !!type.isInSet(state.storedMarks || $from.marks());
+  return state.doc.rangeHasMark(from, to, type);
 }
 
 function button(
@@ -30,6 +47,7 @@ function button(
   title: string,
   onClick: () => void,
   className = "",
+  isActive?: (state: EditorState) => boolean,
 ): HTMLButtonElement {
   const el = document.createElement("button");
   el.type = "button";
@@ -42,8 +60,20 @@ function button(
     event.preventDefault();
   });
   el.addEventListener("click", onClick);
+  if (isActive) active.set(el, isActive);
   return el;
 }
+
+/**
+ * How to tell whether each button applies right now.
+ *
+ * Kept beside the element so `syncState` can ask every button at once without
+ * the buttons having to know about each other.
+ */
+const active = new WeakMap<
+  HTMLButtonElement,
+  (state: EditorState) => boolean
+>();
 
 /**
  * Cite the selected text as scripture.
@@ -78,15 +108,27 @@ export function createToolbar(
   group.className = "toolbar__group";
 
   group.append(
-    button("B", "Bold (Ctrl+B)", () => {
-      toggleMark(schema.marks.strong!)(view.state, view.dispatch);
-      view.focus();
-    }, "toolbar__button--bold"),
+    button(
+      "B",
+      "Bold (Ctrl+B)",
+      () => {
+        toggleMark(schema.marks.strong!)(view.state, view.dispatch);
+        view.focus();
+      },
+      "toolbar__button--bold",
+      (state) => markActive(state, schema.marks.strong!),
+    ),
 
-    button("I", "Italic (Ctrl+I)", () => {
-      toggleMark(schema.marks.em!)(view.state, view.dispatch);
-      view.focus();
-    }, "toolbar__button--italic"),
+    button(
+      "I",
+      "Italic (Ctrl+I)",
+      () => {
+        toggleMark(schema.marks.em!)(view.state, view.dispatch);
+        view.focus();
+      },
+      "toolbar__button--italic",
+      (state) => markActive(state, schema.marks.em!),
+    ),
 
     button("H", "Heading (Ctrl+Shift+2)", () => {
       setBlockType(schema.nodes.heading!, { level: 2 })(
@@ -110,9 +152,14 @@ export function createToolbar(
   const scriptureGroup = document.createElement("div");
   scriptureGroup.className = "toolbar__group";
   scriptureGroup.append(
-    button("Scripture", "Insert the selected reference as scripture", () => {
-      citeSelection(view);
-    }, "toolbar__button--wide"),
+    button(
+      "Scripture",
+      "Insert the selected reference as scripture",
+      () => {
+        citeSelection(view);
+      },
+      "toolbar__button--wide",
+    ),
 
     button(
       "Aa",
@@ -121,6 +168,8 @@ export function createToolbar(
         toggleMark(schema.marks.no_translate!)(view.state, view.dispatch);
         view.focus();
       },
+      "",
+      (state) => markActive(state, schema.marks.no_translate!),
     ),
   );
 
@@ -144,7 +193,20 @@ export function createToolbar(
   saveGroup.append(status, saveButton);
   container.append(saveGroup);
 
+  /** Every button that has an active test, found once. */
+  const stateful = Array.from(
+    container.querySelectorAll<HTMLButtonElement>("button"),
+  ).filter((el) => active.has(el));
+
+  const syncState = () => {
+    for (const el of stateful) {
+      el.setAttribute("aria-pressed", String(active.get(el)!(view.state)));
+    }
+  };
+  syncState();
+
   return {
+    syncState,
     setSaveState(state, message) {
       // The signed-out state relabels the button, so restore it otherwise.
       if (state !== "signin-required") saveButton.textContent = "Save";

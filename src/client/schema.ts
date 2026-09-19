@@ -113,6 +113,7 @@ const baseNodes: Record<string, NodeSpec> = {
 
   horizontal_rule: {
     group: "block",
+    allowGapCursor: true,
     parseDOM: [{ tag: "hr" }],
     toDOM: () => ["hr"] as DOMOutputSpec,
   },
@@ -129,6 +130,10 @@ const baseNodes: Record<string, NodeSpec> = {
     group: "block",
     atom: true,
     draggable: true,
+    // Lets a gap cursor sit beside the node. Without it a citation that ends
+    // the document is a dead end: being an atom it holds no text position, so
+    // there is nowhere after it to put a cursor and no way to type on.
+    allowGapCursor: true,
     attrs: SCRIPTURE_ATTRS,
     parseDOM: [
       {

@@ -13,6 +13,7 @@ import {
 import { createVersionPicker } from "./version-picker.ts";
 import { attachPopoverBehaviour } from "./popover.ts";
 import { mountTranslateHint } from "./translate-hint.ts";
+import type { Toolbar } from "./toolbar.ts";
 import "./styles.css";
 
 interface DocumentResponse {
@@ -308,12 +309,17 @@ async function main(): Promise<void> {
 
   showViewLink(existing?.id ?? null);
 
+  /** Assigned just below; the editor only calls back once it is dispatching. */
+  let toolbar: Toolbar | undefined;
+
   const view = createEditor({
     mount: page,
     initialContent: existing?.content,
     editable: true,
     getVersionId: () => versionId,
     onChange: () => saver?.markDirty(),
+    // Assigned below, once the toolbar it drives exists.
+    onStateChange: () => toolbar?.syncState(),
     // Only on a blank document: an existing note needs no instructions.
     placeholder: existing
       ? undefined
@@ -327,7 +333,7 @@ async function main(): Promise<void> {
           "will be shown in published translations made by human experts.",
   });
 
-  const toolbar = createToolbar(actions, view, {
+  toolbar = createToolbar(actions, view, {
     getVersionId: () => versionId,
     setVersionId: (next) => {
       versionId = next;

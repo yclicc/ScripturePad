@@ -10,18 +10,24 @@ import {
 } from "prosemirror-commands";
 import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
+import { gapCursor } from "prosemirror-gapcursor";
 import {
   inputRules,
   smartQuotes,
   textblockTypeInputRule,
   wrappingInputRule,
 } from "prosemirror-inputrules";
-import { splitListItem, liftListItem, sinkListItem } from "prosemirror-schema-list";
+import {
+  splitListItem,
+  liftListItem,
+  sinkListItem,
+} from "prosemirror-schema-list";
 import { schema } from "./schema.ts";
 import { createScriptureViewFactory } from "./scripture.ts";
 import { scriptureDetectPlugin } from "./detect.ts";
 import { ScripturePrompt } from "./prompt.ts";
 import "prosemirror-view/style/prosemirror.css";
+import "prosemirror-gapcursor/style/gapcursor.css";
 
 /**
  * Strip Google Docs cruft before ProseMirror parses it.
@@ -61,7 +67,10 @@ const headingRule = textblockTypeInputRule(
 
 const blockquoteRule = wrappingInputRule(/^\s*>\s$/, schema.nodes.blockquote!);
 
-const bulletRule = wrappingInputRule(/^\s*([-+*])\s$/, schema.nodes.bullet_list!);
+const bulletRule = wrappingInputRule(
+  /^\s*([-+*])\s$/,
+  schema.nodes.bullet_list!,
+);
 
 const orderedRule = wrappingInputRule(
   /^(\d+)\.\s$/,
@@ -75,6 +84,36 @@ const orderedRule = wrappingInputRule(
  * A decoration rather than real content, so it is never part of the document
  * and can never be saved or translated as if the author had written it.
  */
+/**
+ * Keep a paragraph after a block that cannot hold a cursor.
+ *
+ * A block scripture citation is an atom: it has no text position inside it, so
+ * when one ends the document there is nowhere to put the caret and no way to
+ * carry on writing. `gapCursor()` solves this on desktop, where an arrow key
+ * or a click on a one-pixel gap reaches the space after the node. Touch has
+ * neither — there is no arrow key, and the gap is far too small to tap — so on
+ * a phone the citation was simply a dead end, which is what was reported.
+ *
+ * Appending the paragraph is the fix rather than a larger tap target, because
+ * it needs no aiming at all: the tap lands where the author already expects to
+ * write. An empty trailing paragraph is also what every other editor leaves
+ * behind, and it costs nothing — `toHTML` emits nothing visible for it, and
+ * the next citation appended after it reuses it.
+ */
+export function trailingParagraphPlugin(): Plugin {
+  return new Plugin({
+    appendTransaction(_transactions, _oldState, newState) {
+      const { doc, tr } = newState;
+      const last = doc.lastChild;
+      // `isTextblock` covers paragraphs and headings; only an atom such as a
+      // citation or a horizontal rule leaves the author stranded.
+      if (!last || last.isTextblock || !last.isAtom) return null;
+
+      return tr.insert(doc.content.size, schema.nodes.paragraph!.create());
+    },
+  });
+}
+
 function placeholderPlugin(text: string): Plugin {
   return new Plugin({
     props: {
@@ -104,6 +143,14 @@ export interface EditorOptions {
   editable?: boolean;
   getVersionId: () => number;
   onChange?: () => void;
+  /**
+   * Called after every transaction, including ones that only move the cursor.
+   *
+   * Distinct from `onChange`, which fires only when the document changes: the
+   * toolbar's active state depends on where the selection *is*, so moving the
+   * caret out of bold text must update it even though nothing was edited.
+   */
+  onStateChange?: () => void;
   /** Guidance shown while the document is empty. */
   placeholder?: string;
 }
@@ -144,14 +191,16 @@ export function createEditor(options: EditorOptions): EditorView {
         // so `lift` is chained as the fallback. Without it such a block is
         // trapped at its indent level with no keystroke that frees it.
         Tab: sinkListItem(schema.nodes.list_item!),
-        "Shift-Tab": chainCommands(
-          liftListItem(schema.nodes.list_item!),
-          lift,
-        ),
+        "Shift-Tab": chainCommands(liftListItem(schema.nodes.list_item!), lift),
         "Mod-[": chainCommands(liftListItem(schema.nodes.list_item!), lift),
         "Mod-]": sinkListItem(schema.nodes.list_item!),
       }),
       keymap(baseKeymap),
+      // Puts a cursor beside block nodes that cannot hold one — chiefly a
+      // scripture citation ending the document. Arrow keys and clicks reach
+      // it; `trailingParagraphPlugin` covers touch, which has neither.
+      gapCursor(),
+      trailingParagraphPlugin(),
       // No scripture input rule: references are detected automatically rather
       // than triggered by typed punctuation. See CLAUDE.md.
       inputRules({
@@ -172,8 +221,7 @@ export function createEditor(options: EditorOptions): EditorView {
           const nearest = candidates
             .slice()
             .sort(
-              (a, b) =>
-                Math.abs(a.to - cursor) - Math.abs(b.to - cursor),
+              (a, b) => Math.abs(a.to - cursor) - Math.abs(b.to - cursor),
             )[0];
 
           if (nearest) prompt.show(view, nearest);
@@ -198,6 +246,7 @@ export function createEditor(options: EditorOptions): EditorView {
       const self = this as unknown as EditorView;
       self.updateState(self.state.apply(transaction));
       if (transaction.docChanged) options.onChange?.();
+      options.onStateChange?.();
     },
   });
 
