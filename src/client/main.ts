@@ -12,6 +12,8 @@ import {
 } from "./language.ts";
 import { createVersionPicker } from "./version-picker.ts";
 import { attachPopoverBehaviour } from "./popover.ts";
+import { attachCopyBehaviour } from "./copy.ts";
+import { stashDraft, takeDraft } from "./draft.ts";
 import { mountTranslateHint } from "./translate-hint.ts";
 import type { Toolbar } from "./toolbar.ts";
 import "./styles.css";
@@ -29,10 +31,20 @@ const mountPoint = document.querySelector<HTMLDivElement>("#app");
 if (!mountPoint) throw new Error("Missing #app mount point");
 const mount: HTMLDivElement = mountPoint;
 
-/** Path is "/" (new document), "/:id", or "/:id/edit". */
-function route(): { id: string | null; editing: boolean } {
+/** Path is "/" (new document), "/:id", "/:id/edit", or "/:id/copy". */
+function route(): { id: string | null; editing: boolean; copying: boolean } {
   const parts = window.location.pathname.split("/").filter(Boolean);
-  return { id: parts[0] ?? null, editing: parts[1] === "edit" };
+  return {
+    id: parts[0] ?? null,
+    editing: parts[1] === "edit",
+    copying: parts[1] === "copy",
+  };
+}
+
+function signInUrl(): string {
+  return `/auth/signin?return_to=${encodeURIComponent(
+    window.location.pathname,
+  )}`;
 }
 
 async function loadDocument(id: string): Promise<DocumentResponse | null> {
@@ -128,8 +140,17 @@ async function loadMe(): Promise<Me> {
   }
 }
 
-/** Sign-in / sign-out control, shown at the end of the toolbar. */
-function mountAccount(container: HTMLElement, me: Me): void {
+/**
+ * Sign-in / sign-out control, shown at the end of the toolbar.
+ *
+ * `beforeSignIn` runs as the sign-in link is followed, so the editor can set
+ * its unsaved work aside first.
+ */
+function mountAccount(
+  container: HTMLElement,
+  me: Me,
+  beforeSignIn?: () => void,
+): void {
   if (me.signedIn) {
     const form = document.createElement("form");
     form.method = "post";
@@ -156,10 +177,9 @@ function mountAccount(container: HTMLElement, me: Me): void {
 
   const signIn = document.createElement("a");
   signIn.className = "toolbar__button toolbar__button--primary";
-  signIn.href = `/auth/signin?return_to=${encodeURIComponent(
-    window.location.pathname,
-  )}`;
+  signIn.href = signInUrl();
   signIn.textContent = "Sign in";
+  if (beforeSignIn) signIn.addEventListener("click", beforeSignIn);
   container.append(signIn);
 }
 
@@ -195,7 +215,7 @@ async function mountNotesButton(
 }
 
 async function main(): Promise<void> {
-  const { id, editing } = route();
+  const { id, editing, copying } = route();
   const [existing, me] = await Promise.all([
     id ? loadDocument(id) : Promise.resolve(null),
     loadMe(),
@@ -221,11 +241,14 @@ async function main(): Promise<void> {
   // Machine translation skips contenteditable, so reading uses plain DOM and
   // ProseMirror is loaded only to edit. This also keeps the editor bundle off
   // the critical path for readers.
-  const wantsEditor = editing || !existing;
+  const wantsEditor = editing || copying || !existing;
 
   if (!wantsEditor && existing) {
     document.title = existing.title || "ScripturePad";
     document.documentElement.lang = existing.sourceLang;
+
+    // The browser's own copy drops list numbers and hidden popover passages.
+    attachCopyBehaviour(page);
 
     const rerender = renderDocument(page, existing.content as never, versionId);
 
@@ -273,13 +296,18 @@ async function main(): Promise<void> {
       void picker.announceAutoSelection(language, version.id);
     });
 
+    // Someone else's note can still be adapted: the copy is theirs to save.
+    const edit = document.createElement("a");
+    edit.className = "toolbar__button";
     if (existing.canEdit) {
-      const edit = document.createElement("a");
-      edit.className = "toolbar__button";
       edit.href = `/${existing.id}/edit`;
       edit.textContent = "Edit";
-      actions.append(edit);
+    } else {
+      edit.href = `/${existing.id}/copy`;
+      edit.textContent = "Edit a copy";
+      edit.title = "Start your own note from this one";
     }
+    actions.append(edit);
 
     if (me.signedIn) {
       await mountNotesButton(lead, existing.id);
@@ -295,7 +323,48 @@ async function main(): Promise<void> {
   const { createToolbar } = await import("./toolbar.ts");
   const { DocumentSaver } = await import("./save.ts");
 
+  // Someone else's note is edited as a copy: it opens with their content but
+  // saves as a new document owned by whoever saves it. An `/edit` link to a
+  // note the reader does not own lands here too, rather than on an editor
+  // whose every save would be refused.
+  const isCopy = !!existing && (copying || !existing.canEdit);
+  if (isCopy && existing && !copying) {
+    window.history.replaceState(null, "", `/${existing.id}/copy`);
+  }
+  if (isCopy && existing) {
+    document.title = `Copy of ${existing.title || "a note"} — ScripturePad`;
+  }
+
+  // Work set aside while the author signed in, restored now they are back.
+  const draft = takeDraft(window.location.pathname);
+  if (draft) versionId = draft.versionId;
+
   let saver: InstanceType<typeof DocumentSaver>;
+
+  /** Set when leaving on purpose, so the unsaved-work prompt stays quiet. */
+  let leaving = false;
+
+  /**
+   * Send the author to sign in without losing what they have written.
+   * Saving needs an owner, and a 401 is not something they can act on.
+   */
+  const signInToSave = () => {
+    stashDraft({
+      path: window.location.pathname,
+      content: view.state.doc.toJSON(),
+      versionId,
+    });
+    leaving = true;
+  };
+
+  const saveOrSignIn = () => {
+    if (!me.signedIn) {
+      signInToSave();
+      window.location.href = signInUrl();
+      return;
+    }
+    void saver.save();
+  };
 
   /**
    * Link from the editor to the finished note — the shareable page.
@@ -309,20 +378,30 @@ async function main(): Promise<void> {
   viewLink.hidden = true;
   actions.append(viewLink);
 
+  // Save on the way out, so "View note" shows what was just written rather
+  // than stopping at the unsaved-changes prompt.
+  viewLink.addEventListener("click", async (event) => {
+    const state = saver.currentState;
+    if (state !== "dirty" && state !== "error" && state !== "saving") return;
+    event.preventDefault();
+    await saver.save();
+    if (saver.currentState === "saved") window.location.href = viewLink.href;
+  });
+
   const showViewLink = (documentId: string | null) => {
     if (!documentId) return;
     viewLink.href = `/${documentId}`;
     viewLink.hidden = false;
   };
 
-  showViewLink(existing?.id ?? null);
+  showViewLink(isCopy ? null : (existing?.id ?? null));
 
   /** Assigned just below; the editor only calls back once it is dispatching. */
   let toolbar: Toolbar | undefined;
 
   const view = createEditor({
     mount: page,
-    initialContent: existing?.content,
+    initialContent: draft?.content ?? existing?.content,
     editable: true,
     getVersionId: () => versionId,
     onChange: () => saver?.markDirty(),
@@ -348,22 +427,12 @@ async function main(): Promise<void> {
       setPreferredVersion(lang, next);
     },
     language: lang,
-    onSave: () => {
-      // Saving needs an owner, so send the user to sign in rather than letting
-      // the request fail with a 401 they cannot act on.
-      if (!me.signedIn) {
-        window.location.href = `/auth/signin?return_to=${encodeURIComponent(
-          window.location.pathname,
-        )}`;
-        return;
-      }
-      void saver.save();
-    },
+    onSave: saveOrSignIn,
   });
 
   saver = new DocumentSaver({
     view,
-    documentId: existing?.id ?? null,
+    documentId: isCopy ? null : (existing?.id ?? null),
     sourceLang: lang,
     getVersionId: () => versionId,
     onStateChange: (state, message) => {
@@ -376,38 +445,43 @@ async function main(): Promise<void> {
   // Somewhere to find previously saved notes. A panel rather than a page, so
   // opening it mid-edit does not lose the author's place.
   if (me.signedIn) {
-    await mountNotesButton(lead, existing?.id ?? null);
+    await mountNotesButton(lead, isCopy ? null : (existing?.id ?? null));
     // Only offer "New" from an existing note; on a blank editor it is a no-op.
     if (existing) mountNewNoteButton(lead);
   }
 
-  mountAccount(actions, me);
+  mountAccount(actions, me, signInToSave);
 
   // Ownership is what makes a document editable later, so saving requires an
   // account. Say so up front rather than failing at the moment of saving.
   // The button stays enabled when signed out — it routes to sign-in — so the
   // prompt is actionable rather than a dead end.
-  toolbar.setSaveState(
-    me.signedIn ? "clean" : "signin-required",
-    me.signedIn ? undefined : "Sign in to save your notes",
-  );
+  if (!me.signedIn) {
+    toolbar.setSaveState(
+      "signin-required",
+      isCopy ? "Sign in to save your copy" : "Sign in to save your notes",
+    );
+  } else if (draft) {
+    // They pressed Save before signing in; finish what they asked for.
+    void saver.save();
+  } else if (isCopy) {
+    // A copy exists only in this tab until saved.
+    saver.markDirty();
+  } else {
+    toolbar.setSaveState("clean");
+  }
 
   // Ctrl/Cmd+S is what people reach for; intercept the browser's Save Page.
   window.addEventListener("keydown", (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key === "s") {
       event.preventDefault();
-      if (!me.signedIn) {
-        window.location.href = `/auth/signin?return_to=${encodeURIComponent(
-          window.location.pathname,
-        )}`;
-        return;
-      }
-      void saver.save();
+      saveOrSignIn();
     }
   });
 
   // Losing a sermon to a stray tab close is unacceptable.
   window.addEventListener("beforeunload", (event) => {
+    if (leaving) return;
     if (saver.currentState === "dirty" || saver.currentState === "saving") {
       event.preventDefault();
       event.returnValue = "";

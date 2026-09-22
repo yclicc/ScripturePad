@@ -1,4 +1,5 @@
 import { toQueryRef, type ScriptureReference } from "../shared/references.ts";
+import { safeHref } from "../shared/urls.ts";
 import { registerCitedVersion } from "./colophon.ts";
 
 /**
@@ -33,8 +34,12 @@ function renderText(node: PMNode): Node {
         wrapper = document.createElement("em");
         break;
       case "link": {
+        // Stored content is untrusted: a `javascript:` link would run script
+        // for whoever clicks it. An unsafe target is shown as plain text.
+        const href = safeHref(mark.attrs?.href);
+        if (!href) continue;
         const anchor = document.createElement("a");
-        anchor.href = String(mark.attrs?.href ?? "#");
+        anchor.href = href;
         anchor.rel = "noopener noreferrer";
         wrapper = anchor;
         break;
@@ -254,6 +259,14 @@ function renderNode(
         node.type === "bullet_list" ? "ul" : "ol",
       );
       appendChildren(list, node.content, pending, versionId);
+      // Numbered explicitly, so a copy that starts partway down the list
+      // keeps its numbers rather than restarting from 1 wherever it is pasted.
+      if (list instanceof HTMLOListElement) {
+        const start = Number(node.attrs?.order ?? 1) || 1;
+        Array.from(list.children).forEach((item, index) => {
+          (item as HTMLLIElement).value = start + index;
+        });
+      }
       return list;
     }
 

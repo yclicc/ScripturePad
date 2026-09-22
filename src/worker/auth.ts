@@ -1,5 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { Env, SessionUser } from "./env.ts";
+import { safeReturnPath } from "../shared/urls.ts";
 
 /**
  * PKCE is implemented here rather than taken from the SDK: the SDK's
@@ -163,7 +164,14 @@ export async function startSignIn(
   // outright (the scope vanishes entirely).
   authorizeUrl.searchParams.set("require_user_interaction", "true");
 
-  const pkce: PkceState = { codeVerifier, state, nonce, returnTo };
+  // Validated here, where it enters, so the cookie never carries an
+  // off-site destination.
+  const pkce: PkceState = {
+    codeVerifier,
+    state,
+    nonce,
+    returnTo: safeReturnPath(returnTo),
+  };
 
   return new Response(null, {
     status: 302,
@@ -410,7 +418,8 @@ export async function handleCallback(
   // other repeated headers can be: cookie attributes contain commas (Expires
   // dates especially), so a joined value parses as one malformed cookie and
   // the browser silently drops it. `Headers.append` emits one header each.
-  const headers = new Headers({ location: pkce.returnTo || "/" });
+  // Checked again on the way out: the PKCE cookie is client-held.
+  const headers = new Headers({ location: safeReturnPath(pkce.returnTo) });
   headers.append(
     "set-cookie",
     cookie(SESSION_COOKIE, sessionId, SESSION_TTL_SECONDS, isSecure(request)),

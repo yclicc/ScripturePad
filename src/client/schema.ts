@@ -5,6 +5,7 @@ import {
   type NodeSpec,
 } from "prosemirror-model";
 import { addListNodes } from "prosemirror-schema-list";
+import { safeHref } from "../shared/urls.ts";
 
 /**
  * A deliberately small schema.
@@ -218,17 +219,21 @@ const marks: Record<string, MarkSpec> = {
           const href = dom.getAttribute("href");
           // Docs routes links through a redirector; unwrap to the real target.
           if (href?.startsWith("https://www.google.com/url?q=")) {
-            const real = new URL(href).searchParams.get("q");
+            const real = safeHref(new URL(href).searchParams.get("q"));
             if (real) return { href: real };
           }
-          return { href };
+          // Pasted HTML is untrusted; an unsafe link keeps its text only.
+          const safe = safeHref(href);
+          return safe ? { href: safe } : false;
         },
       },
     ],
     toDOM: (node) =>
       [
         "a",
-        { href: node.attrs.href, rel: "noopener noreferrer" },
+        // Checked again here: documents saved before the parse-time check,
+        // or crafted through the API, reach the editor without passing it.
+        { href: safeHref(node.attrs.href) ?? "", rel: "noopener noreferrer" },
         0,
       ] as DOMOutputSpec,
   },

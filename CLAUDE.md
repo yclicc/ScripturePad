@@ -393,6 +393,22 @@ Both halves matter, and neither is sufficient alone:
 - Responses are guarded by an `inFlight` version stamp, so switching language
   twice quickly cannot land an older passage after a newer one.
 
+#### Copying from the reader is handled by us, not the browser
+
+The browser's own copy drops `<ol>` numbers (they are CSS markers), skips
+popover passages (`visibility: hidden` until hovered), and jams verse numbers
+against the verse. `copy.ts` intercepts `copy` in the reader and writes both
+plain text (for WhatsApp) and HTML. Reader list items carry an explicit
+`value` so a partial selection keeps its numbering.
+
+#### User-supplied URLs are untrusted
+
+Notes are public and anyone can sign in and publish one. Link hrefs go through
+`safeHref` (http/https/mailto/tel only) in the reader, on paste, and in the
+editor's `toDOM` — a `javascript:` link would be stored XSS. The sign-in
+`return_to` goes through `safeReturnPath`, both when stored and when
+redirected to, or it becomes an open redirect straight after a real sign-in.
+
 GDPR still applies to the personal data held, which is deliberately minimal:
 
 - `sessions` — `yvp_id`, display name, avatar URL. Deleted on sign-out, on
