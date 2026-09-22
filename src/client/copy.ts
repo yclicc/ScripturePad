@@ -1,5 +1,3 @@
-import { inlineCitationText } from "./reader.ts";
-
 /**
  * Copying from the reader.
  *
@@ -9,14 +7,14 @@ import { inlineCitationText } from "./reader.ts";
  * - **List numbers vanish.** An `<ol>` numbers its items with CSS markers,
  *   which are not text, so a numbered list pasted into WhatsApp arrives as
  *   bare lines.
- * - **Popover passages vanish.** Their text is `visibility: hidden` until
- *   hovered, and hidden text is left out of what is copied — so the reference
- *   survives and the scripture it points to does not.
+ * - **Popover passages are unpredictable.** Their text is hidden until
+ *   hovered, and whether it is copied depends on the browser. They are copied
+ *   as the reference alone, which is also how they print: the author chose a
+ *   popover precisely to keep that passage out of the running text.
  * - **Verse numbers run into the verse**, "16For God so loved", because the
  *   gap is a CSS margin rather than a space.
  *
- * So the reader writes the clipboard itself. The selection is cloned (the DOM
- * range includes hidden text even though the browser's serialiser skips it),
+ * So the reader writes the clipboard itself. The selection is cloned,
  * normalised into plain structure, and offered as both plain text — what a
  * messaging app takes — and HTML, for pasting into a document.
  */
@@ -37,19 +35,6 @@ const BLOCK_TAGS = new Set([
   "HR",
 ]);
 
-/** Passage text with verse numbers dropped and lines run together. */
-function flattenPassage(body: Element): string {
-  const clone = body.cloneNode(true) as Element;
-  for (const number of clone.querySelectorAll(".verse__number")) {
-    number.remove();
-  }
-  const verses = Array.from(clone.querySelectorAll(".verse"));
-  const text = verses.length
-    ? verses.map((verse) => verse.textContent ?? "").join(" ")
-    : (clone.textContent ?? "");
-  return text.replace(/\s+/g, " ").trim();
-}
-
 /**
  * Rewrite citations in a cloned selection into structure that survives
  * without our stylesheet, which is absent wherever the text is pasted.
@@ -57,18 +42,12 @@ function flattenPassage(body: Element): string {
 export function normaliseCitations(root: DocumentFragment | Element): void {
   const doc = root.ownerDocument ?? document;
 
-  // A popover becomes an inline citation: the passage is what the reader
-  // wants to share, and there is no hover in a chat message.
+  // A popover copies as its reference alone, as it prints: only scripture
+  // that is shown on the page is copied with it.
   for (const popover of root.querySelectorAll(".scripture--popover")) {
-    const ref = popover.querySelector(".scripture__ref")?.textContent ?? "";
-    const body = popover.querySelector(".scripture__text");
-    const passage =
-      body && !body.classList.contains("scripture__text--error")
-        ? flattenPassage(body)
-        : "";
     const span = doc.createElement("span");
     span.textContent =
-      passage && passage !== "…" ? inlineCitationText(ref, passage) : ref;
+      popover.querySelector(".scripture__ref")?.textContent ?? "";
     popover.replaceWith(span);
   }
 
@@ -196,9 +175,9 @@ export function toPlainText(root: DocumentFragment | Element): string {
 /**
  * Widen a range so it never cuts through a popover citation.
  *
- * Its passage is hidden, so a selection cannot end partway into it on
- * purpose; including the whole citation is the only sensible reading. A
- * selection made entirely inside an open popover is left alone.
+ * Its passage is hidden, so a selection that ends partway into it would
+ * otherwise copy a clipped reference. A selection made entirely inside an
+ * open popover is left alone: that passage is on screen and chosen on purpose.
  */
 function widenAroundPopovers(range: Range): Range {
   const wide = range.cloneRange();

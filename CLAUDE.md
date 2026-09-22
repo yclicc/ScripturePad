@@ -395,9 +395,9 @@ Both halves matter, and neither is sufficient alone:
 
 #### Copying from the reader is handled by us, not the browser
 
-The browser's own copy drops `<ol>` numbers (they are CSS markers), skips
-popover passages (`visibility: hidden` until hovered), and jams verse numbers
-against the verse. `copy.ts` intercepts `copy` in the reader and writes both
+The browser's own copy drops `<ol>` numbers (they are CSS markers) and jams
+verse numbers against the verse. Popover citations copy as the reference
+only, matching print — only scripture shown on the page is copied. `copy.ts` intercepts `copy` in the reader and writes both
 plain text (for WhatsApp) and HTML. Reader list items carry an explicit
 `value` so a partial selection keeps its numbering.
 
