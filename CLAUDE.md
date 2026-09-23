@@ -84,8 +84,10 @@ priority order:
   end needs real credentials on a logged-out phone. Re-test before assuming.
   If it persists, the provider's raw-space bug above is the thing to suspect,
   and trying the auth step in a new tab is the user's suggested workaround.
-- **FEATURE**: auto-detect plain-text hyperlinks while typing/pasting and turn
-  them into real links.
+- ~~**FEATURE**: auto-detect plain-text hyperlinks~~ — done 2026-09-23:
+  `findLinks` in `src/shared/linkify.ts`, `autolinkPlugin` in
+  `src/client/autolink.ts`. Editor-only; notes saved before it keep plain
+  text until edited.
 - **FEATURE (lower priority)**: make it easier for a first-time visitor to
   work out **what the site actually does and how to use it**. Right now the
   landing experience assumes you already know. Wants a short explanation of

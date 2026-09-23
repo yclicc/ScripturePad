@@ -25,6 +25,7 @@ import {
 import { schema } from "./schema.ts";
 import { createScriptureViewFactory } from "./scripture.ts";
 import { scriptureDetectPlugin } from "./detect.ts";
+import { autolinkPlugin } from "./autolink.ts";
 import { ScripturePrompt } from "./prompt.ts";
 import "prosemirror-view/style/prosemirror.css";
 import "prosemirror-gapcursor/style/gapcursor.css";
@@ -201,6 +202,7 @@ export function createEditor(options: EditorOptions): EditorView {
       // it; `trailingParagraphPlugin` covers touch, which has neither.
       gapCursor(),
       trailingParagraphPlugin(),
+      autolinkPlugin(),
       // No scripture input rule: references are detected automatically rather
       // than triggered by typed punctuation. See CLAUDE.md.
       inputRules({
