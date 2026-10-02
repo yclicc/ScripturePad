@@ -1,0 +1,50 @@
+/*
+ * Noto Nastaliq Urdu 4.000, cut to its Arabic-script characters (OFL.txt).
+ *
+ * Not @fontsource/noto-nastaliq-urdu, nor Google Fonts, which it mirrors:
+ * both serve version 3.007, which hangs Chrome's text layout outright — any
+ * text at all in it, even a single word, never finishes laying out. 4.000
+ * lays out a whole chapter in well under a second.
+ *
+ * Only the Arabic-script characters, as before: the full font would draw
+ * every Latin character on an Urdu page in its own calligraphic Latin. The
+ * unicode-range means a weight is downloaded only when Urdu text is shown.
+ *
+ * Regenerate from the upstream TTFs (github.com/notofonts/nastaliq), with
+ * `unicodes.txt` holding the range below plus U+0020 and U+00A0:
+ *
+ *   pyftsubset NotoNastaliqUrdu-Regular.ttf --unicodes-file=unicodes.txt \
+ *     --layout-features='*' --name-IDs='*' --flavor=woff2 \
+ *     --output-file=noto-nastaliq-urdu-arabic-400.woff2
+ */
+@font-face {
+  font-family: "Noto Nastaliq Urdu";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./noto-nastaliq-urdu-arabic-400.woff2") format("woff2");
+  unicode-range:
+    U+0600-0604, U+0609-0615, U+061B-061C, U+061E-065B, U+065D-0673,
+    U+0679-0681, U+0683-068F, U+0691, U+0693, U+0696, U+0698-069C, U+069E,
+    U+06A0-06A1, U+06A4, U+06A6-06A9, U+06AB, U+06AF-06B1, U+06B3, U+06B7,
+    U+06BA-06BE, U+06C0-06C4, U+06C6-06C7, U+06CA, U+06CC-06D0, U+06D2-06D5,
+    U+06DD-06DE, U+06E0-06E1, U+06E9, U+06EE-06F9, U+06FF, U+0750-0763,
+    U+0767-077D, U+08A0-08B4, U+08B6-08C7, U+08E3-08FF, U+200C-2011,
+    U+FBB2-FBC1, U+FD3E-FD3F, U+FDF2, U+FDF4, U+FDFA-FDFD;
+}
+
+@font-face {
+  font-family: "Noto Nastaliq Urdu";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./noto-nastaliq-urdu-arabic-700.woff2") format("woff2");
+  unicode-range:
+    U+0600-0604, U+0609-0615, U+061B-061C, U+061E-065B, U+065D-0673,
+    U+0679-0681, U+0683-068F, U+0691, U+0693, U+0696, U+0698-069C, U+069E,
+    U+06A0-06A1, U+06A4, U+06A6-06A9, U+06AB, U+06AF-06B1, U+06B3, U+06B7,
+    U+06BA-06BE, U+06C0-06C4, U+06C6-06C7, U+06CA, U+06CC-06D0, U+06D2-06D5,
+    U+06DD-06DE, U+06E0-06E1, U+06E9, U+06EE-06F9, U+06FF, U+0750-0763,
+    U+0767-077D, U+08A0-08B4, U+08B6-08C7, U+08E3-08FF, U+200C-2011,
+    U+FBB2-FBC1, U+FD3E-FD3F, U+FDF2, U+FDF4, U+FDFA-FDFD;
+}

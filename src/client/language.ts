@@ -74,44 +74,76 @@ export function baseLanguage(tag: string): string {
   return primary;
 }
 
-export async function versionsForLanguage(
+/**
+ * Versions for a language, throwing when they could not be fetched.
+ *
+ * Use this where the reader can act on the difference: an empty list means
+ * the language has no Bible on the platform, while a failure (often a 429 from
+ * YouVersion) is worth retrying. Only successes are cached.
+ */
+export async function fetchVersionsForLanguage(
   language: string,
 ): Promise<VersionSummary[]> {
   const key = baseLanguage(language);
   const cached = versionCache.get(key);
   if (cached) return cached;
 
-  try {
-    const res = await fetch(
-      `/api/versions?language=${encodeURIComponent(key)}`,
-    );
-    if (!res.ok) return [];
+  const res = await fetch(`/api/versions?language=${encodeURIComponent(key)}`);
+  if (!res.ok) throw new Error(`Version list failed: HTTP ${res.status}`);
 
-    const versions = (await res.json()) as VersionSummary[];
-    versionCache.set(key, versions);
-    return versions;
-  } catch {
-    return [];
-  }
+  const versions = (await res.json()) as VersionSummary[];
+  versionCache.set(key, versions);
+  return versions;
+}
+
+/** As `fetchVersionsForLanguage`, but a failure reads as no versions. */
+export async function versionsForLanguage(
+  language: string,
+): Promise<VersionSummary[]> {
+  return fetchVersionsForLanguage(language).catch(() => []);
 }
 
 /**
- * Pick a version for a language: the reader's saved choice if it is in that
- * language, else the first available version, else null when the language has
- * no Bible on the platform.
+ * Default versions for languages where the platform's first-listed one is a
+ * poor first choice. Keyed on `baseLanguage` output.
+ *
+ * - `ur`: 187, Urdu Geo Version in Urdu (Arabic) script. The platform lists the
+ *   Roman-script edition first, but an Urdu reader whose page has just been
+ *   translated into Urdu script expects the scripture in it too. Replace with
+ *   the Urdu Revised Version (URV) if rights to it are obtained — it is the
+ *   better translation, but not available to this app key.
  */
+const LANGUAGE_DEFAULTS: Record<string, number> = {
+  ur: 187,
+};
+
+/**
+ * Choose among a language's versions: the reader's saved choice if it is in
+ * that language, else the language's chosen default, else the first listed.
+ * Null when the language has no Bible on the platform.
+ */
+export function pickVersion(
+  language: string,
+  versions: readonly VersionSummary[],
+  preferred: number | null,
+): VersionSummary | null {
+  const byId = (id: number | null | undefined) =>
+    id ? versions.find((version) => version.id === id) : undefined;
+
+  return (
+    byId(preferred) ??
+    byId(LANGUAGE_DEFAULTS[baseLanguage(language)]) ??
+    versions[0] ??
+    null
+  );
+}
+
+/** As `pickVersion`, fetching the language's versions first. */
 export async function defaultVersionFor(
   language: string,
   preferred: number | null,
 ): Promise<VersionSummary | null> {
-  const versions = await versionsForLanguage(language);
-  if (versions.length === 0) return null;
-
-  const saved = preferred
-    ? versions.find((version) => version.id === preferred)
-    : undefined;
-
-  return saved ?? versions[0]!;
+  return pickVersion(language, await versionsForLanguage(language), preferred);
 }
 
 /**

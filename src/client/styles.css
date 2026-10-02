@@ -62,6 +62,38 @@ body {
   line-height: 1.7;
 }
 
+/*
+ * Urdu in Nastaliq, the script's own style. An Arabic font sets it in Naskh,
+ * which an Urdu reader sees as Arabic, and most desktops have no Nastaliq
+ * font of their own; Noto Nastaliq Urdu is bundled (see main.ts). This covers
+ * a note written in Urdu and a page the browser has translated into it.
+ *
+ * Roman (ur-Latn) and Devanagari (ur-Deva) Urdu Bibles exist too, and keep the
+ * ordinary stack — each passage carries its version's own `lang` for this.
+ */
+:lang(ur):not(:lang(ur-Latn), :lang(ur-Deva)) {
+  font-family:
+    "Noto Nastaliq Urdu", "Urdu Typesetting", "Jameel Noori Nastaleeq",
+    system-ui, sans-serif;
+}
+
+/*
+ * Nastaliq stacks letters diagonally and needs far more line height than
+ * Latin or Naskh, or lines collide. Listed are the rules that set their own.
+ */
+:is(
+    body,
+    .page h1,
+    .page h2,
+    .page h3,
+    .tagline,
+    .translate-hint__panel,
+    .version-notice,
+    .scripture__text
+  ):lang(ur):not(:lang(ur-Latn), :lang(ur-Deva)) {
+  line-height: 2.2;
+}
+
 .shell {
   min-height: 100vh;
   display: flex;
@@ -434,6 +466,18 @@ body {
   align-items: center;
   gap: 0.75rem;
   text-align: center;
+}
+
+.site-footer__sync {
+  margin: 0;
+  max-width: 34rem;
+  font-size: 0.875rem;
+  color: var(--ink-muted);
+}
+
+.site-footer__sync a {
+  color: var(--accent);
+  font-weight: 500;
 }
 
 .site-footer__credit {

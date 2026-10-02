@@ -1,0 +1,553 @@
+/*
+ * ScripturePad Sync — built to be projected.
+ *
+ * High contrast, large type, and nothing on the stage but the verses and
+ * which translation each column is. Dark is true black, which a projector
+ * shows as no light at all rather than a grey glow.
+ */
+
+.sync {
+  --sync-bg: #ffffff;
+  --sync-ink: #111111;
+  --sync-muted: #6b6f76;
+  --sync-line: #d9dce1;
+  --sync-hl: #fff1a8;
+  --sync-hl-edge: #d99a00;
+  --sync-panel: #ffffff;
+  --sync-control: #f1f3f4;
+  --sync-accent: #1a73e8;
+  --sync-accent-ink: #ffffff;
+  --sync-error: #c5221f;
+  --sync-gap: calc(var(--sync-font) * 0.9);
+
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--sync-bg);
+  color: var(--sync-ink);
+  color-scheme: light;
+}
+
+/* The same dark tokens, for an explicit choice and for "system". */
+.sync[data-theme="dark"] {
+  --sync-bg: #000000;
+  --sync-ink: #f2f2f2;
+  --sync-muted: #8a8f98;
+  --sync-line: #33363b;
+  --sync-hl: rgb(255 196 0 / 0.2);
+  --sync-hl-edge: #ffc400;
+  --sync-panel: #1e1f21;
+  --sync-control: #2d2f31;
+  --sync-accent: #8ab4f8;
+  --sync-accent-ink: #0b1a33;
+  --sync-error: #f28b82;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sync[data-theme="system"] {
+    --sync-bg: #000000;
+    --sync-ink: #f2f2f2;
+    --sync-muted: #8a8f98;
+    --sync-line: #33363b;
+    --sync-hl: rgb(255 196 0 / 0.2);
+    --sync-hl-edge: #ffc400;
+    --sync-panel: #1e1f21;
+    --sync-control: #2d2f31;
+    --sync-accent: #8ab4f8;
+    --sync-accent-ink: #0b1a33;
+    --sync-error: #f28b82;
+    color-scheme: dark;
+  }
+}
+
+/* Rows and the colophon are display: grid/block, which beats [hidden]. */
+.sync [hidden] {
+  display: none !important;
+}
+
+/* Stage ------------------------------------------------------------------ */
+
+.sync__stage {
+  position: absolute;
+  /* Margins are in pixels, but never more than 45% of the screen a side, so
+     a margin set for a large display cannot squeeze the verses off a small
+     one. Percentages here are of the height (top, bottom) or width (sides). */
+  inset: min(var(--m-top, 0px), 45%) min(var(--m-right, 0px), 45%)
+    min(var(--m-bottom, 0px), 45%) min(var(--m-left, 0px), 45%);
+  display: flex;
+  flex-direction: column;
+  padding: 1.5vh 2vw;
+}
+
+.sync__labels,
+.sync__row {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+  column-gap: var(--sync-gap);
+  padding-inline: calc(var(--sync-font) * 0.35);
+}
+
+.sync__labels {
+  flex: none;
+  padding-bottom: 0.4em;
+  margin-bottom: 0.4em;
+  border-bottom: 1px solid var(--sync-line);
+  font-size: clamp(13px, calc(var(--sync-font) * 0.42), 26px);
+  line-height: 1.3;
+  color: var(--sync-muted);
+}
+
+.sync__label-ref {
+  color: var(--sync-ink);
+  font-weight: 600;
+}
+
+/* Isolated, so an RTL reference and a Latin abbreviation cannot reorder into
+   each other: "زبور 1:2-4 urdgvu" rendered as "4-2:1 urdgvu زبور". */
+.sync__label-ref,
+.sync__label-version {
+  unicode-bidi: isolate;
+}
+
+.sync__label--error {
+  color: var(--sync-error);
+}
+
+.sync__viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sync__body {
+  /* Offsets are measured against this, for pagination. */
+  position: relative;
+}
+
+.sync__row {
+  /* Cells keep their own height, so each column can be measured alone. */
+  align-items: start;
+  padding-block: calc(var(--sync-font) * 0.18);
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+/* Sizes come from variables on the body; see `setScales` in sync.ts. */
+.sync__cell {
+  font-size: calc(var(--sync-font) * var(--scale, 1) * var(--fit, 1));
+  line-height: 1.38;
+  overflow-wrap: anywhere;
+}
+
+.sync__cell:nth-child(1) {
+  --scale: var(--scale-1, 1);
+}
+
+.sync__cell:nth-child(2) {
+  --scale: var(--scale-2, 1);
+}
+
+.sync__cell:nth-child(3) {
+  --scale: var(--scale-3, 1);
+}
+
+.sync__cell:nth-child(4) {
+  --scale: var(--scale-4, 1);
+}
+
+/* Until a verse is highlighted everything reads at full strength; after,
+   the rest steps back so the current verse is unmistakable. */
+.sync__stage.has-cursor .sync__row {
+  color: var(--sync-muted);
+}
+
+.sync__stage.has-cursor .sync__row.is-current {
+  color: var(--sync-ink);
+  background: var(--sync-hl);
+  box-shadow: inset 5px 0 0 var(--sync-hl-edge);
+}
+
+/*
+ * Every line hangs, so a wrapped line reads as a continuation. Poetry keeps
+ * its deeper levels but starts level with prose at q1 — at projection sizes a
+ * full em per level wastes a column's width.
+ */
+/*
+ * Urdu in Nastaliq, the script's own style, rather than the Naskh of an
+ * Arabic font, which reads to an Urdu speaker as Arabic. Roman-script Urdu
+ * (ur-Latn) is excluded. Nastaliq's diagonal stacking needs far more line
+ * height than Naskh or Latin, or the lines collide.
+ */
+.sync__cell:lang(ur):not(:lang(ur-Latn), :lang(ur-Deva)),
+.sync__label-ref:lang(ur):not(:lang(ur-Latn), :lang(ur-Deva)),
+.sync__colophon :lang(ur):not(:lang(ur-Latn), :lang(ur-Deva)) {
+  font-family:
+    "Noto Nastaliq Urdu", "Urdu Typesetting", "Jameel Noori Nastaleeq",
+    system-ui, sans-serif;
+}
+
+.sync__cell:lang(ur):not(:lang(ur-Latn), :lang(ur-Deva)) {
+  line-height: 2.2;
+}
+
+.sync__line {
+  padding-inline-start: 0.6em;
+  text-indent: -0.6em;
+}
+
+.sync__line--poetry {
+  padding-inline-start: calc((var(--indent, 1) - 1) * 0.8em + 0.6em);
+}
+
+.sync__num {
+  font-size: 0.55em;
+  font-weight: 600;
+  line-height: 0;
+  margin-inline-end: 0.2em;
+  color: var(--sync-muted);
+}
+
+.sync__caps {
+  font-variant-caps: small-caps;
+}
+
+.sync__colophon {
+  margin-top: calc(var(--sync-font) * 0.6);
+  padding: calc(var(--sync-font) * 0.35);
+  border-top: 1px solid var(--sync-line);
+  font-size: clamp(12px, calc(var(--sync-font) * 0.36), 22px);
+  line-height: 1.4;
+  color: var(--sync-muted);
+}
+
+.sync__colophon p {
+  margin: 0 0 0.3em;
+}
+
+.sync__colophon-heading {
+  font-weight: 600;
+}
+
+.sync__message {
+  font-size: max(16px, calc(var(--sync-font) * 0.6));
+  color: var(--sync-muted);
+  padding: 1em;
+}
+
+.sync__blank {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  background: #000;
+}
+
+/* Controls --------------------------------------------------------------- */
+
+.sync__controls {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem;
+  border-radius: 999px;
+  background: var(--sync-panel);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.25);
+  font-size: 14px;
+  transition: opacity 300ms ease;
+}
+
+.sync.is-idle {
+  cursor: none;
+}
+
+.sync.is-idle .sync__controls {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sync__status {
+  min-width: 4.5em;
+  text-align: center;
+  color: var(--sync-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.sync-button {
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.2;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--sync-line);
+  border-radius: 999px;
+  background: var(--sync-control);
+  color: var(--sync-ink);
+  cursor: pointer;
+}
+
+.sync-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.sync-button--primary {
+  background: var(--sync-accent);
+  border-color: var(--sync-accent);
+  color: var(--sync-accent-ink);
+}
+
+.sync-button--icon {
+  padding: 0.3rem 0.55rem;
+}
+
+.sync-button:focus-visible,
+.sync-panel__input:focus-visible {
+  outline: 2px solid var(--sync-accent);
+  outline-offset: 2px;
+}
+
+/* Settings panel --------------------------------------------------------- */
+
+.sync-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  width: min(27rem, 100vw);
+  overflow-y: auto;
+  padding: 1rem 1.25rem 2rem;
+  background: var(--sync-panel);
+  color: var(--sync-ink);
+  box-shadow: -4px 0 24px rgb(0 0 0 / 0.25);
+  font-size: 15px;
+  line-height: 1.5;
+  transform: translateX(105%);
+  transition: transform 200ms ease;
+}
+
+.sync-panel.is-open {
+  transform: none;
+}
+
+.sync-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sync-panel__header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.sync-panel__close {
+  font: inherit;
+  border: 0;
+  background: none;
+  color: var(--sync-accent);
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.sync-panel__section {
+  padding-top: 0.9rem;
+  margin-top: 0.9rem;
+  border-top: 1px solid var(--sync-line);
+}
+
+.sync-panel__section h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.sync-panel__hint {
+  margin: 0.4rem 0;
+  font-size: 0.85rem;
+  color: var(--sync-muted);
+}
+
+.sync-panel__error {
+  margin: 0.4rem 0;
+  font-size: 0.85rem;
+  color: var(--sync-error);
+}
+
+.sync-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sync-panel__input {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  font: inherit;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--sync-line);
+  border-radius: 6px;
+  background: var(--sync-bg);
+  color: var(--sync-ink);
+}
+
+.sync-panel__range {
+  flex: 1;
+  accent-color: var(--sync-accent);
+}
+
+.sync-panel__value {
+  min-width: 3.5em;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.sync-panel__check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-top: 0.6rem;
+  font-size: 0.9rem;
+}
+
+.sync-panel__check input {
+  margin-top: 0.3rem;
+  accent-color: var(--sync-accent);
+}
+
+.sync-panel__margins {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1rem;
+}
+
+.sync-panel__margins label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.sync-panel__margins span {
+  min-width: 3.5em;
+}
+
+.sync-panel__number {
+  max-width: 5em;
+}
+
+.sync-panel__row > .sync-button {
+  flex: none;
+}
+
+.sync-panel__segmented {
+  display: inline-flex;
+  border: 1px solid var(--sync-line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.sync-panel__segmented label {
+  cursor: pointer;
+}
+
+.sync-panel__segmented input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sync-panel__segmented span {
+  display: block;
+  padding: 0.35rem 0.9rem;
+}
+
+.sync-panel__segmented input:checked + span {
+  background: var(--sync-accent);
+  color: var(--sync-accent-ink);
+}
+
+.sync-panel__segmented input:focus-visible + span {
+  outline: 2px solid var(--sync-accent);
+  outline-offset: -2px;
+}
+
+.sync-picker__list {
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.sync-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--sync-line);
+  border-radius: 6px;
+}
+
+.sync-picker__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.sync-picker__name {
+  font-weight: 600;
+}
+
+.sync-picker__badge {
+  margin-inline-start: 0.4rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--sync-hl);
+  font-size: 0.75rem;
+}
+
+.sync-picker__detail {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--sync-muted);
+}
+
+.sync-picker__detail--error {
+  color: var(--sync-error);
+}
+
+.sync-picker__actions {
+  display: flex;
+  gap: 0.25rem;
+  flex: none;
+}
+
+.sync-picker__add {
+  display: grid;
+  /* A grid track will not shrink below its content by default, so one long
+     version name ("urdgvu — Urdu Geo Version, Urdu Script") widened the
+     selects past the panel and pushed the Add button out of sight. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+/* Landing ---------------------------------------------------------------- */
+
+.sync__landing {
+  max-width: 34rem;
+  margin: 12vh auto 0;
+  padding: 0 16px;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.sync__landing h1 {
+  font-size: 1.6rem;
+  margin: 0 0 0.5rem;
+}

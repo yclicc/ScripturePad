@@ -16,6 +16,11 @@ import { attachCopyBehaviour } from "./copy.ts";
 import { stashDraft, takeDraft } from "./draft.ts";
 import { mountTranslateHint } from "./translate-hint.ts";
 import type { Toolbar } from "./toolbar.ts";
+// Urdu is written in Nastaliq, which few desktop systems ship. Self-hosted, so
+// no request goes to a third party, and a weight is only downloaded when Urdu
+// text in it is actually on screen. Shared with Sync, which loads through here.
+// Why it is not from @fontsource or Google Fonts: see fonts/nastaliq.css.
+import "./fonts/nastaliq.css";
 import "./styles.css";
 
 interface DocumentResponse {
@@ -83,6 +88,11 @@ function shell(): {
       <aside class="colophon" hidden></aside>
     </main>
     <footer class="site-footer">
+      <p class="site-footer__sync">
+        Reading aloud to a mixed-language congregation? Project a passage in
+        several translations side by side with
+        <a href="/sync"><span translate="no">ScripturePad Sync</span></a>.
+      </p>
       <p class="site-footer__credit">
         Originally created for Antioch Network Manchester
       </p>
@@ -215,6 +225,13 @@ async function mountNotesButton(
 }
 
 async function main(): Promise<void> {
+  // ScripturePad Sync is its own page, loaded only when asked for.
+  if (/^\/sync(\/|$)/.test(window.location.pathname)) {
+    const { mountSync } = await import("./sync/sync.ts");
+    await mountSync(mount);
+    return;
+  }
+
   const { id, editing, copying } = route();
   const [existing, me] = await Promise.all([
     id ? loadDocument(id) : Promise.resolve(null),

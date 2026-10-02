@@ -126,6 +126,43 @@ describe("parseReference", () => {
     });
   });
 
+  it("parses a range of whole chapters", () => {
+    expect(parseReference("Luke 2-3")).toEqual({
+      book: "LUK",
+      chapter: 2,
+      verseStart: null,
+      endChapter: 3,
+      verseEnd: null,
+    });
+    expect(parseReference("Isaiah 52 – 53")).toMatchObject({
+      chapter: 52,
+      endChapter: 53,
+    });
+  });
+
+  it("does not take a whole-chapter range from a numbered book", () => {
+    // The "1" opens "1 John"; read as Psalm 23-1 it is a backwards range,
+    // and "John 4" would be left behind in place of "1 John 4".
+    expect(
+      findReferences("Psalm 23-1 John 4").map((found) => found.reference),
+    ).toEqual([
+      { book: "PSA", chapter: 23, verseStart: null, endChapter: 23, verseEnd: null },
+      { book: "1JN", chapter: 4, verseStart: null, endChapter: 4, verseEnd: null },
+    ]);
+    // A later book that is not numbered does not stop the range.
+    expect(parseReference("Luke 2-3 Isaiah 9")).toMatchObject({
+      book: "LUK",
+      endChapter: 3,
+    });
+  });
+
+  it("leaves a chapter range ending in a verse as its first chapter", () => {
+    expect(parseReference("Luke 2-3:5")).toMatchObject({
+      chapter: 2,
+      endChapter: 2,
+    });
+  });
+
   it("rejects a backwards range across chapters", () => {
     expect(parseReference("Genesis 3:1-2:5")).toBeNull();
   });

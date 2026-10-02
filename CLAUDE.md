@@ -95,6 +95,51 @@ priority order:
   it in their language with real published translations) and enough guidance
   to get someone to their first note. Tackle after the bug above.
 
+## ScripturePad Sync (`/sync/<passage>/<version ids>`)
+
+A projection page: one passage in up to four translations side by side, for
+reading aloud to a mixed-language congregation. Each press of → / Page Down /
+a clicker highlights the next verse in every column; once the last verse on
+screen has been read, the next press brings up the next screenful.
+
+- **Address**: `/sync/John+3:16-21/113,93`. The passage is written as people
+  say it, `+` for spaces; USFM (`JHN.3.16-21`) also parses. See
+  `src/shared/sync-path.ts`. The versions are **in the path, not the cookie**,
+  so a link passed to someone else reproduces the sender's columns. The cookie
+  only supplies versions when a link names none, and is updated only when
+  translations are actually chosen on the page — not when someone merely
+  changes the text size while viewing another person's link.
+- **Alignment** (`src/client/sync/align.ts`, unit-tested): one grid row per
+  verse with every column inside it, so verses start level whatever their
+  length. A row some column lacks (a bridged "16–17") folds *forward*,
+  because `parsePassageLines` numbers a bridged verse by its **last** marker.
+  Chapters come from `segments`, which `fetchReference` now returns alongside
+  `languageTag`; neither is in the KV-cached passage, so no cache bump.
+- **Sizing**: the configured size is a base; "even out column lengths" scales
+  each column towards the geometric mean of their heights (clamped), and a
+  verse too tall for a whole screen is shrunk to fit when it is shown.
+- **`/sync/*` fetches the app shell by `/`, not by its own path.** The asset
+  layer 307s a path containing `+`, `:` or `,` to its percent-encoded form,
+  which turns the readable link into `John%2B3%3A16`.
+- **Passages may span chapters**: `Isaiah+52:13-53:12`, or whole chapters as
+  `Luke+2-3`. The first verse of each chapter is numbered `53:1`, since bare
+  numbers restart. A whole-chapter range never ends in a numbered book's
+  digit — "Psalm 23-1 John 4" stays two references.
+- Screen margins are in **pixels**, each capped in CSS at 45% of the screen.
+- Copyright appears once, after the last verse (End, or one press past it).
+- **Urdu is set in Nastaliq**, on Sync and the reader alike, not the Naskh an
+  Arabic font gives it — Naskh reads to an Urdu speaker as Arabic, and most
+  desktops have no Nastaliq font. Noto Nastaliq Urdu **4.000** is bundled in
+  `src/client/fonts/` (self-hosted, so still no third-party request),
+  **Arabic subset only** — the full font would draw every Latin character on an
+  Urdu page in its own calligraphic Latin. **Never take it from `@fontsource`
+  or Google Fonts**: both serve 3.007, which hangs Chrome's layout on any text
+  at all — it froze `/sync/Luke+3/187,101` indefinitely. Reader passages carry their
+  version's `lang` so the rule follows the scripture, not just the page. The
+  platform also has Roman (`ur-Latn`) and Devanagari (`ur-Deva`) Urdu, which
+  are excluded — hence direction from the text (`dir="auto"`), never from the
+  language code.
+
 ## The Rewrite: What Is Changing And Why
 
 | Area | Was | Now |
@@ -329,6 +374,13 @@ Resolution order for which version to render:
    reader's language.
 3. `DEFAULT_VERSION_ID` (BSB, license-free).
 
+Within a language, "the default" is the platform's first-listed version
+unless `LANGUAGE_DEFAULTS` in `src/client/language.ts` names one. Urdu does:
+**187 (urdgvu, Urdu script)**, because the platform lists the Roman-script
+edition first and an Urdu reader expects Urdu script. It is a stopgap — switch
+to the **Urdu Revised Version (URV)** if rights to it are obtained; it is the
+better translation but is not available to this app key.
+
 Step 2 is language-conditional: inheriting the author's English version is
 wrong for a reader viewing the page in Swahili, so fall through to the default
 for that language when the tags do not match.
@@ -344,8 +396,13 @@ user requested. Both of ours qualify:
 | --- | --- | --- |
 | `sp_session` | Authentication after sign-in | 30 days |
 | `sp_pkce` | CSRF/PKCE state during sign-in | 10 minutes |
+| `sp_sync` | Sync display settings and preferred translations, path `/sync` only | 1 year |
 
-Neither profiles users, tracks across sites, nor feeds analytics. **Adding any
+None profiles users, tracks across sites, or feeds analytics. `sp_sync` is a
+user-interface preference the user sets explicitly: it is written only when a
+setting is changed, never on page load, holds no identifier, is never read by
+the server, and the Sync settings panel says what it stores beside a "Forget my
+settings" button. Keep all four of those true. **Adding any
 analytics or unconditionally embedded third-party content changes this** and
 would require a consent banner.
 

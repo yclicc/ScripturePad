@@ -22,7 +22,8 @@ import {
   fetchReference,
   listVersions,
 } from "./youversion.ts";
-import { parseReference } from "../shared/references.ts";
+import { formatReference, parseReference } from "../shared/references.ts";
+import { parseSyncPath } from "../shared/sync-path.ts";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -301,6 +302,37 @@ async function documentPage(
     })
     .transform(asset);
 }
+
+/**
+ * ScripturePad Sync. Matched before `/:id`, so `/sync` is never looked up as
+ * a document, and given the passage as its title for link previews.
+ */
+app.get("/sync/*", async (c) => {
+  // The app shell is fetched by its own address, not this one: the asset
+  // layer 307s a path holding "+", ":" or "," to its percent-encoded form,
+  // which would turn a readable "/sync/John+3:16" into "John%2B3%3A16".
+  const asset = await c.env.ASSETS.fetch(new URL("/", c.req.url));
+  const { reference } = parseSyncPath(new URL(c.req.url).pathname);
+  if (!asset.ok || !reference) return asset;
+
+  const title = `${formatReference(reference)} — ScripturePad Sync`;
+  return new HTMLRewriter()
+    .on("title", {
+      element(element) {
+        element.setInnerContent(title);
+      },
+    })
+    .on("head", {
+      element(element) {
+        element.append(
+          `<meta property="og:title" content="${escapeAttribute(title)}">`,
+          { html: true },
+        );
+      },
+    })
+    .transform(asset);
+});
+app.get("/sync", (c) => c.env.ASSETS.fetch(new URL("/", c.req.url)));
 
 // Document pages get their title injected; everything else is served as-is.
 app.get("/:id", async (c) => {

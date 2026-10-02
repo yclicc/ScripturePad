@@ -57,6 +57,14 @@ export interface PassageResult {
   copyright: string | null;
   versionTitle: string;
   versionAbbreviation: string;
+  /**
+   * Which chapter each run of `lines` belongs to, in order. Verse numbers
+   * restart at each chapter, so without this a caller cannot tell 2:1 from
+   * 3:1 in a cross-chapter passage. Set by `fetchReference` only.
+   */
+  segments?: Array<{ chapter: number; lines: number }>;
+  /** BCP-47 tag of the version's language. Set by `fetchReference` only. */
+  languageTag?: string;
 }
 
 export interface VersionSummary {
@@ -191,8 +199,16 @@ export async function fetchReference(
   reference: ScriptureReference,
   versionId: number = DEFAULT_VERSION_ID,
 ): Promise<PassageResult> {
+  // `segments` and `languageTag` are not part of the cached passage, so adding
+  // them needs no cache-key bump. `getVersion` is itself KV-cached, and already
+  // warm from `fetchPassage`.
   if (!spansChapters(reference)) {
-    return fetchPassage(env, toUsfm(reference), versionId);
+    const passage = await fetchPassage(env, toUsfm(reference), versionId);
+    return {
+      ...passage,
+      segments: [{ chapter: reference.chapter, lines: passage.lines.length }],
+      languageTag: (await getVersion(env, versionId)).languageTag,
+    };
   }
 
   const counts = await getChapterVerseCounts(env, versionId, reference.book)
@@ -223,6 +239,11 @@ export async function fetchReference(
     reference: formatReference(reference),
     lines,
     content: linesToText(lines),
+    segments: parts.map((part, index) => ({
+      chapter: reference.chapter + index,
+      lines: part.lines.length,
+    })),
+    languageTag: (await getVersion(env, versionId)).languageTag,
   };
 }
 

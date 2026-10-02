@@ -143,16 +143,40 @@ const BOOK_ALTERNATION = Object.keys(BOOK_NAMES)
 const NUMBERED_PREFIX = "(?:[123]|I{1,3})\\s*(?:st|nd|rd|th)?\\s*";
 
 /**
+ * A digit that opens a numbered book — the "1" of "1 John". The names are the
+ * table's numbered spellings with the digit taken off.
+ */
+const NUMBERED_BOOK =
+  "[123]\\s*(?:st|nd|rd|th)?\\s*(?:" +
+  [
+    ...new Set(
+      Object.keys(BOOK_NAMES)
+        .filter((name) => /^[123]/.test(name))
+        .map((name) => name.replace(/^[123]\s*/, "")),
+    ),
+  ]
+    .sort((a, b) => b.length - a.length)
+    .map((name) => escapeRegex(name).replace(/\\?\s/g, "\\s*"))
+    .join("|") +
+  ")\\b";
+
+/**
  * Matches a reference anywhere in prose.
  *
- * Groups: 1 book, 2 chapter, 3 start verse, 4 end chapter, 5 end verse.
- * The end of a range may name a chapter ("2:1-3:5") or just a verse
- * ("3:16-18"), so group 4 is only present in the spanning form.
+ * Groups: 1 book, 2 chapter, 3 start verse, 4 end chapter, 5 end verse,
+ * 6 end chapter of a whole-chapter range. The end of a verse range may name a
+ * chapter ("2:1-3:5") or just a verse ("3:16-18"), so group 4 is only present
+ * in the spanning form. Group 6 is "Luke 2-3".
+ *
+ * A whole-chapter range must not end in a verse ("Luke 2-3:5" is left as
+ * "Luke 2") or in the number of a numbered book: in "Psalm 23-1 John 4" the
+ * "1" belongs to the next reference, and stealing it would leave "John 4".
  */
 const REFERENCE_PATTERN = new RegExp(
   `((?:${NUMBERED_PREFIX})?(?:${BOOK_ALTERNATION})\\.?)` +
     `\\s+(\\d{1,3})` +
-    `(?::(\\d{1,3})(?:\\s*[-–]\\s*(?:(\\d{1,3})\\s*:\\s*)?(\\d{1,3}))?)?`,
+    `(?::(\\d{1,3})(?:\\s*[-–]\\s*(?:(\\d{1,3})\\s*:\\s*)?(\\d{1,3}))?` +
+    `|\\s*[-–]\\s*(?!${NUMBERED_BOOK})(\\d{1,3})(?![\\d:]))?`,
   "gi",
 );
 
@@ -189,7 +213,8 @@ export function findReferences(
     if (!book) continue;
 
     const startRaw = match[3];
-    const endChapterRaw = match[4];
+    // A whole-chapter range ("Luke 2-3") has its end chapter in group 6.
+    const endChapterRaw = match[4] ?? match[6];
     const endRaw = match[5];
 
     const chapter = Number(chapterRaw);
@@ -350,4 +375,9 @@ export function formatReference(ref: ScriptureReference): string {
   }
 
   return `${book} ${ref.chapter}:${ref.verseStart}`;
+}
+
+/** True for a USFM book code this app knows, e.g. "SNG" or "1CO". */
+export function isBookCode(code: string): boolean {
+  return Object.hasOwn(DISPLAY_NAMES, code.toUpperCase());
 }

@@ -89,6 +89,8 @@ interface PassageResponse {
   content: string;
   lines: PassageLine[];
   copyright: string | null;
+  /** The version's language. Absent for a raw USFM `ref`. */
+  languageTag?: string;
   versionTitle: string;
   versionAbbreviation: string;
 }
@@ -196,6 +198,19 @@ async function fillScripture(
 
     const passage = (await res.json()) as PassageResponse;
     if (superseded()) return;
+
+    // The passage's own language, not the page's: a Roman-script Urdu Bible
+    // on an Urdu page must not be set in Nastaliq. Direction comes from the
+    // text for the same reason — Urdu is published in three scripts.
+    // Without a tag the attributes are removed, not emptied: `lang=""`
+    // declares the language unknown, overriding the page's own.
+    if (passage.languageTag) {
+      body.lang = passage.languageTag;
+      body.dir = "auto";
+    } else {
+      body.removeAttribute("lang");
+      body.removeAttribute("dir");
+    }
 
     if (style === "inline") {
       body.textContent = inlineCitationText(passage.reference, passage.content);
