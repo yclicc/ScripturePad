@@ -136,6 +136,21 @@ describe("parsePassageLines", () => {
     expect(lines.every((l) => l.indent === 0)).toBe(true);
   });
 
+  it("reads a bridged verse marked with a single marker", () => {
+    // Urdu Geo (187), Ezekiel 1: verses 1–3 are one marker carrying `ev`.
+    const lines = parsePassageLines(
+      '<div><div class="p"><span class="yv-v" ev="3" v="1"></span>' +
+        '<span class="yv-vlbl">1\u200f-3</span>first</div>' +
+        '<div class="p"><span class="yv-v" v="4"></span>' +
+        '<span class="yv-vlbl">4</span>fourth</div></div>',
+    );
+
+    expect(lines.map((l) => [l.number, l.numberEnd])).toEqual([
+      [1, 3],
+      [4, undefined],
+    ]);
+  });
+
   it("flattens to readable prose", () => {
     const text = linesToText(parsePassageLines(PSALM_23_POETRY));
 

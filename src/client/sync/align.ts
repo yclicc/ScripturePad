@@ -14,6 +14,8 @@ export interface PassageSpan {
 /** As produced by `parsePassageLines` on the server. */
 export interface PassageLine {
   number: number | null;
+  /** Last verse of a bridged verse marked as one, e.g. 3 for "1–3". */
+  numberEnd?: number;
   spans: PassageSpan[];
   indent: number;
 }
@@ -87,13 +89,17 @@ export function toVerses(passage: SyncPassage, firstChapter: number): Verse[] {
       return;
     }
 
+    // A bridged verse goes by its last number, as one printed with a marker
+    // per verse already does, so alignment folds the others into it.
+    const number = line.numberEnd ?? line.number;
+
     // The same number twice in a row continues the verse.
-    if (last && last.chapter === chapter && last.verse === line.number) {
+    if (last && last.chapter === chapter && last.verse === number) {
       last.lines.push(line);
       return;
     }
 
-    verses.push({ chapter, verse: line.number, lines: [...pending, line] });
+    verses.push({ chapter, verse: number, lines: [...pending, line] });
     pending = [];
   });
 
@@ -125,8 +131,9 @@ function combine(first: Row, second: Row): Row {
  * bridged verse sits beside both of the verses it covers rather than leaving
  * a hole and pushing everything after it out of step.
  *
- * It folds forward, because the passage parser numbers a bridged verse by its
- * *last* marker — "16–17" arrives as verse 17 with 16 missing. A gap in the
+ * It folds forward, because a bridged verse is keyed by its *last* verse —
+ * "16–17" arrives as verse 17 with 16 missing, whether the source printed a
+ * marker per verse or one marker with an end (`numberEnd`). A gap in the
  * final row folds back instead.
  *
  * A column with no verses at all (it failed to load) is ignored for this, or
@@ -228,10 +235,14 @@ export interface Screen {
  *
  * Greedy, and never splits an item: a verse is read as a unit. An item taller
  * than a whole screen gets one to itself, and the caller shrinks it to fit.
+ *
+ * @param breaks Items that must start a new screen, such as the first verse
+ *   of each reading in a playlist.
  */
 export function paginate(
   extents: readonly Extent[],
   available: number,
+  breaks: ReadonlySet<number> = new Set(),
 ): Screen[] {
   const screens: Screen[] = [];
   let start = 0;
@@ -239,7 +250,11 @@ export function paginate(
   while (start < extents.length) {
     const top = extents[start]!.top;
     let end = start + 1;
-    while (end < extents.length && extents[end]!.bottom - top <= available) {
+    while (
+      end < extents.length &&
+      !breaks.has(end) &&
+      extents[end]!.bottom - top <= available
+    ) {
       end += 1;
     }
     screens.push({ start, end });

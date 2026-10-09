@@ -109,10 +109,21 @@ screen has been read, the next press brings up the next screenful.
   only supplies versions when a link names none, and is updated only when
   translations are actually chosen on the page — not when someone merely
   changes the text size while viewing another person's link.
+- **Playlists**: several readings separated by commas (or semicolons),
+  `/sync/Ezekiel+1,Revelation+1:5-2:7/187,110,101`. A part naming no book
+  continues the previous one ("John 3:16, 18", "Psalm 23, 24"). If any part
+  fails to parse the whole list is rejected, never silently shortened. Each
+  reading starts a fresh screen and the labels show the reading on screen.
+  Capped at `MAX_SYNC_READINGS` (10), since every reading is fetched in every
+  version, one request at a time.
 - **Alignment** (`src/client/sync/align.ts`, unit-tested): one grid row per
   verse with every column inside it, so verses start level whatever their
   length. A row some column lacks (a bridged "16–17") folds *forward*,
-  because `parsePassageLines` numbers a bridged verse by its **last** marker.
+  because a bridge is keyed by its **last** verse. Versions bridge in two
+  ways: a marker per verse (`parsePassageLines` keeps the last), or **one
+  marker with an end**, `<span class="yv-v" v="1" ev="3">`, read into
+  `numberEnd`. Urdu Geo (187) does the latter in Ezekiel 1; ignoring `ev`
+  lost verses 2–3 from the alignment.
   Chapters come from `segments`, which `fetchReference` now returns alongside
   `languageTag`; neither is in the KV-cached passage, so no cache bump.
 - **Sizing**: the configured size is a base; "even out column lengths" scales

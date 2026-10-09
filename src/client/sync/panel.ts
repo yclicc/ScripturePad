@@ -33,8 +33,8 @@ export interface PanelOptions {
   /** Display settings changed; versions are reported separately. */
   onSettings: (next: SyncSettings) => void;
   onVersions: (ids: number[]) => void;
-  /** Returns false when the text is not a reference, so it can say so. */
-  onPassage: (text: string) => boolean;
+  /** Returns why the text cannot be shown, or null when it can. */
+  onPassage: (text: string) => string | null;
   onForget: () => void;
   onClose: () => void;
 }
@@ -118,7 +118,7 @@ export function createPanel(options: PanelOptions): Panel {
   const passageInput = el("input", {
     type: "text",
     value: options.passage,
-    placeholder: "e.g. John 3:16-21",
+    placeholder: "e.g. John 3:16-21, Romans 8:28-39",
     className: "sync-panel__input",
   });
   passageInput.setAttribute("aria-label", "Bible passage");
@@ -139,7 +139,9 @@ export function createPanel(options: PanelOptions): Panel {
   );
   passageForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    passageError.hidden = options.onPassage(passageInput.value);
+    const error = options.onPassage(passageInput.value);
+    passageError.hidden = error === null;
+    if (error !== null) passageError.textContent = error;
   });
 
   // Translations ----------------------------------------------------------

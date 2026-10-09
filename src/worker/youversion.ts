@@ -93,7 +93,7 @@ export async function fetchPassage(
   // Bump this version whenever PassageResult's shape changes: entries cached
   // under an older shape would otherwise be served missing their new fields,
   // which fails silently as an empty citation rather than as an error.
-  const cacheKey = `passage:v3:${versionId}:${usfm}`;
+  const cacheKey = `passage:v4:${versionId}:${usfm}`;
   const cached = await env.BIBLE_CACHE.get<PassageResult>(cacheKey, "json");
   if (cached) return cached;
 

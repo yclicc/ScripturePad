@@ -1,6 +1,8 @@
 /**
  * ScripturePad Sync: one passage in several translations, side by side, for
- * projecting while it is read aloud.
+ * projecting while it is read aloud. Several readings may follow one another
+ * like a playlist; each starts on a fresh screen, with its own reference
+ * above the columns.
  *
  * Each verse is one row with every translation inside it, so a verse starts
  * at the same height in every column. The reader (or whoever holds the
@@ -15,11 +17,16 @@
 
 import "./sync.css";
 import {
-  formatReference,
   toQueryRef,
   type ScriptureReference,
 } from "../../shared/references.ts";
-import { parseSyncPath, syncPath } from "../../shared/sync-path.ts";
+import {
+  formatReadings,
+  MAX_SYNC_READINGS,
+  parseReadings,
+  parseSyncPath,
+  syncPath,
+} from "../../shared/sync-path.ts";
 import { DEFAULT_VERSION_ID } from "../preferences.ts";
 import { defaultVersionFor } from "../language.ts";
 import {
@@ -44,14 +51,21 @@ import {
 type ColumnResult =
   { ok: true; passage: SyncPassage } | { ok: false; error: string };
 
-/** Passages per version for the current reference. Failures are retried. */
-const passages = new Map<number, ColumnResult>();
+/** A row of the whole playlist, knowing which reading it belongs to. */
+type PlacedRow = Row & { reading: number };
+
+/** Passages per reading and version. Failures are retried. */
+const passages = new Map<string, ColumnResult>();
+
+const passageKey = (reference: ScriptureReference, versionId: number) =>
+  `${toQueryRef(reference)}|${versionId}`;
 
 async function loadColumn(
   reference: ScriptureReference,
   versionId: number,
 ): Promise<ColumnResult> {
-  const cached = passages.get(versionId);
+  const key = passageKey(reference, versionId);
+  const cached = passages.get(key);
   if (cached?.ok) return cached;
 
   let result: ColumnResult;
@@ -73,8 +87,18 @@ async function loadColumn(
     result = { ok: false, error: "Could not reach ScripturePad." };
   }
 
-  passages.set(versionId, result);
+  passages.set(key, result);
   return result;
+}
+
+/** The readings typed into a passage field, or why they cannot be shown. */
+function readPassageField(text: string): ScriptureReference[] | string {
+  const references = parseReadings(text);
+  if (!references) return "That does not look like a Bible reference.";
+  if (references.length > MAX_SYNC_READINGS) {
+    return `Sync shows at most ${MAX_SYNC_READINGS} readings at a time.`;
+  }
+  return references;
 }
 
 /** The versions to start with when neither the link nor a cookie names any. */
@@ -119,8 +143,12 @@ function renderLine(line: PassageLine, chapter?: number): HTMLElement {
   if (line.number !== null) {
     const number = document.createElement("sup");
     number.className = "sync__num";
+    const verses =
+      line.numberEnd === undefined
+        ? String(line.number)
+        : `${line.number}–${line.numberEnd}`;
     number.textContent =
-      chapter === undefined ? String(line.number) : `${chapter}:${line.number}`;
+      chapter === undefined ? verses : `${chapter}:${verses}`;
     element.append(number);
   }
 
@@ -155,12 +183,16 @@ function renderLanding(
     </p>
     <form class="sync-panel__row">
       <input class="sync-panel__input" type="text" required
-        placeholder="e.g. John 3:16-21" aria-label="Bible passage" />
+        placeholder="e.g. John 3:16-21, Romans 8:28-39"
+        aria-label="Bible passage" />
       <button class="sync-button sync-button--primary" type="submit">
         Show
       </button>
     </form>
     <p class="sync-panel__error" hidden></p>
+    <p class="sync-panel__hint">
+      For several readings one after another, separate them with commas.
+    </p>
   `;
   const input = landing.querySelector("input")!;
   const error = landing.querySelector<HTMLElement>(".sync-panel__error")!;
@@ -171,15 +203,13 @@ function renderLanding(
   }
   landing.querySelector("form")!.addEventListener("submit", (event) => {
     event.preventDefault();
-    const { reference } = parseSyncPath(
-      `/sync/${encodeURIComponent(input.value)}`,
-    );
-    if (!reference) {
+    const references = readPassageField(input.value);
+    if (typeof references === "string") {
       error.hidden = false;
-      error.textContent = "That does not look like a Bible reference.";
+      error.textContent = references;
       return;
     }
-    window.location.assign(syncPath(reference, versionIds));
+    window.location.assign(syncPath(references, versionIds));
   });
   root.append(landing);
   input.focus();
@@ -219,8 +249,8 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
       ? settings.versionIds
       : await defaultVersions();
 
-  const reference = path.reference;
-  if (!reference) {
+  const references = path.references;
+  if (references.length === 0) {
     document.title = "ScripturePad Sync";
     const attempted = decodeURIComponent(
       window.location.pathname.replace(/^\/sync\/?/, "").split("/")[0] ?? "",
@@ -229,9 +259,9 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
     return;
   }
 
-  document.title = `${formatReference(reference)} — ScripturePad Sync`;
+  document.title = `${formatReadings(references)} — ScripturePad Sync`;
   // Name the versions in the address, so a copied link shows the same.
-  window.history.replaceState(null, "", syncPath(reference, versionIds));
+  window.history.replaceState(null, "", syncPath(references, versionIds));
 
   root.innerHTML = `
     <div class="sync__stage">
@@ -265,13 +295,16 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
 
   // Layout state -----------------------------------------------------------
 
-  let columns: ColumnResult[] = [];
-  let rows: Row[] = [];
+  /** Each reading's columns, in reading order then column order. */
+  let readings: ColumnResult[][] = [];
+  let rows: PlacedRow[] = [];
   /** Cells per row, per column, so fonts can be set without a DOM query. */
   let cells: HTMLElement[][] = [];
   /** Every row, then the colophon last. */
   let items: HTMLElement[] = [];
   let screens: Screen[] = [];
+  /** The reading whose references the labels show; -1 for none yet. */
+  let labelled = -1;
   /**
    * Which item is highlighted: -1 before the first verse, `rows.length` for
    * the colophon (the end, with nothing highlighted).
@@ -308,6 +341,10 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
       (screen) => target >= screen.start && target < screen.end,
     );
     const screen = screens[Math.max(0, index)] ?? { start: 0, end: 0 };
+
+    // The labels name the reading on screen; the colophon goes with the last.
+    const reading = (rows[screen.start] ?? rows[rows.length - 1])?.reading;
+    if (reading !== undefined && reading !== labelled) renderLabels(reading);
 
     items.forEach((item, i) => {
       const hidden = i < screen.start || i >= screen.end;
@@ -353,12 +390,15 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
     for (const item of items) item.hidden = false;
     setFit(1);
 
-    const even = columns.map(() => 1);
+    const even = versionIds.map(() => 1);
     setScales(even);
-    if (settings.balance && columns.filter((c) => c.ok).length > 1) {
+    const loaded = versionIds.filter((_, column) =>
+      readings.some((columns) => columns[column]?.ok),
+    );
+    if (settings.balance && loaded.length > 1) {
       // Every cell is read before anything is written, so this is one
       // layout rather than one per cell.
-      const heights = columns.map((_, column) =>
+      const heights = versionIds.map((_, column) =>
         cells.reduce((sum, row) => sum + (row[column]?.offsetHeight ?? 0), 0),
       );
       setScales(balanceFactors(heights));
@@ -370,6 +410,12 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
         bottom: item.offsetTop + item.offsetHeight,
       })),
       viewport.clientHeight,
+      // Each reading after the first starts on a screen of its own.
+      new Set(
+        rows.flatMap((row, i) =>
+          i > 0 && row.reading !== rows[i - 1]!.reading ? [i] : [],
+        ),
+      ),
     );
     show();
   };
@@ -391,22 +437,36 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
 
   // Rendering --------------------------------------------------------------
 
+  /** Any reading's passage for a version, for what is true of them all. */
+  const versionPassage = (id: number): SyncPassage | null => {
+    for (const reference of references) {
+      const result = passages.get(passageKey(reference, id));
+      if (result?.ok) return result.passage;
+    }
+    return null;
+  };
+
   const panelVersions = (): PanelVersion[] =>
     versionIds.map((id) => {
-      const result = passages.get(id);
-      const passage = result?.ok ? result.passage : null;
+      const passage = versionPassage(id);
+      // A version may lack some readings — an Old Testament passage in a New
+      // Testament — so the first failure is worth reporting.
+      const failed = references
+        .map((reference) => passages.get(passageKey(reference, id)))
+        .find((result) => result && !result.ok);
       return {
         id,
         abbreviation: passage?.versionAbbreviation ?? null,
         title: passage?.versionTitle ?? null,
         language: passage?.languageTag ?? null,
-        error: result && !result.ok ? result.error : null,
+        error: failed && !failed.ok ? failed.error : null,
       };
     });
 
-  const renderLabels = () => {
+  const renderLabels = (reading: number) => {
+    labelled = reading;
     labels.replaceChildren();
-    columns.forEach((column, index) => {
+    (readings[reading] ?? []).forEach((column, index) => {
       const label = document.createElement("div");
       label.className = "sync__label";
       if (column.ok) {
@@ -441,9 +501,9 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
     heading.textContent = "Scripture quotations";
     colophon.append(heading);
 
-    for (const column of columns) {
-      if (!column.ok) continue;
-      const { passage } = column;
+    for (const id of versionIds) {
+      const passage = versionPassage(id);
+      if (!passage) continue;
       const entry = document.createElement("p");
       const name = document.createElement("strong");
       name.setAttribute("translate", "no");
@@ -464,20 +524,25 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
   const render = () => {
     const previous = rows[cursor];
 
-    const verseColumns = columns.map((column) =>
-      column.ok ? toVerses(column.passage, reference.chapter) : [],
+    rows = readings.flatMap((columns, reading) =>
+      alignVerses(
+        columns.map((column) =>
+          column.ok
+            ? toVerses(column.passage, references[reading]!.chapter)
+            : [],
+        ),
+      ).map((row) => ({ ...row, reading })),
     );
-    rows = alignVerses(verseColumns);
-    stage.style.setProperty("--cols", String(Math.max(1, columns.length)));
+    stage.style.setProperty("--cols", String(Math.max(1, versionIds.length)));
 
-    renderLabels();
+    renderLabels(0);
     body.replaceChildren();
     cells = [];
 
     if (rows.length === 0) {
       const empty = document.createElement("p");
       empty.className = "sync__message";
-      empty.textContent = columns.some((column) => column.ok)
+      empty.textContent = readings.flat().some((column) => column.ok)
         ? "This passage has no verses in the chosen translations."
         : "The passage could not be loaded. Check the reference and " +
           "translations in Settings, or try again in a few minutes.";
@@ -488,11 +553,21 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
 
     // Verse numbers start again at each chapter, so in a passage covering
     // several, the first verse of each says which chapter it opens.
-    const spansChapters = rows.some((row) => row.chapter !== rows[0]!.chapter);
+    const spansChapters = new Set(
+      rows.flatMap((row, i) =>
+        i > 0 &&
+        row.reading === rows[i - 1]!.reading &&
+        row.chapter !== rows[i - 1]!.chapter
+          ? [row.reading]
+          : [],
+      ),
+    );
 
     for (const [index, row] of rows.entries()) {
+      const before = rows[index - 1];
       const opensChapter =
-        spansChapters && row.chapter !== rows[index - 1]?.chapter;
+        spansChapters.has(row.reading) &&
+        (before?.reading !== row.reading || before.chapter !== row.chapter);
       const element = document.createElement("div");
       element.className = "sync__row";
       element.dataset.index = String(index);
@@ -500,7 +575,7 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
         const cell = document.createElement("div");
         cell.className = "sync__cell";
         cell.setAttribute("translate", "no");
-        const result = columns[column];
+        const result = readings[row.reading]?.[column];
         const tag = result?.ok ? (result.passage.languageTag ?? "") : "";
         cell.lang = tag;
         // From the text, not the language: Urdu, for one, is published in
@@ -530,6 +605,7 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
     if (previous) {
       const found = rows.findIndex(
         (row) =>
+          row.reading === previous.reading &&
           row.chapter === previous.chapter &&
           row.verseStart <= previous.verseStart &&
           row.verseEnd >= previous.verseStart,
@@ -552,14 +628,20 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
     items = [];
 
     const ids = versionIds;
-    const results: ColumnResult[] = [];
-    for (const id of ids) results.push(await loadColumn(reference, id));
+    const results: ColumnResult[][] = [];
+    for (const reference of references) {
+      const columns: ColumnResult[] = [];
+      for (const id of ids) columns.push(await loadColumn(reference, id));
+      results.push(columns);
+    }
 
     // Fetch Nastaliq before the first layout, not after it. Otherwise the
     // passage is laid out in a fallback font, then again — the slow part —
     // when Nastaliq arrives, and the projected text visibly jumps. Capped,
     // so a slow connection still gets the text.
-    if (results.some((result) => result.ok && isNastaliq(result.passage))) {
+    if (
+      results.flat().some((result) => result.ok && isNastaliq(result.passage))
+    ) {
       await Promise.race([
         document.fonts?.load('16px "Noto Nastaliq Urdu"', "اردو"),
         new Promise((resolve) => setTimeout(resolve, 3000)),
@@ -569,7 +651,7 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
     // A newer choice of versions superseded this load.
     if (ids !== versionIds) return;
 
-    columns = results;
+    readings = results;
     panel.setVersions(panelVersions());
     render();
   };
@@ -585,14 +667,14 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
     preferredIds = ids;
     persist();
     // Keep the address in step, so the link copied from here shows the same.
-    window.history.replaceState(null, "", syncPath(reference, ids));
+    window.history.replaceState(null, "", syncPath(references, ids));
     panel.setVersions(panelVersions());
     void load();
   };
 
   const panel = createPanel({
     settings,
-    passage: formatReference(reference),
+    passage: formatReadings(references),
     onSettings: (next) => {
       // The panel owns display settings only; versions come via onVersions.
       settings = next;
@@ -602,12 +684,10 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
     },
     onVersions: setVersions,
     onPassage: (text) => {
-      const { reference: next } = parseSyncPath(
-        `/sync/${encodeURIComponent(text)}`,
-      );
-      if (!next) return false;
+      const next = readPassageField(text);
+      if (typeof next === "string") return next;
       window.location.assign(syncPath(next, versionIds));
-      return true;
+      return null;
     },
     onForget: () => {
       forgetSettings();

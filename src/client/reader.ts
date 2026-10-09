@@ -80,6 +80,8 @@ interface PassageSpan {
 
 interface PassageLine {
   number: number | null;
+  /** Last verse of a bridged verse marked as one, e.g. 3 for "1–3". */
+  numberEnd?: number;
   spans: PassageSpan[];
   indent: number;
 }
@@ -139,7 +141,10 @@ export function renderPassageLines(
       number.className = "verse__number";
       // Verse numbers are notation, not prose: never translate them.
       number.setAttribute("translate", "no");
-      number.textContent = String(line.number);
+      number.textContent =
+        line.numberEnd === undefined
+          ? String(line.number)
+          : `${line.number}–${line.numberEnd}`;
       el.append(number);
     }
 

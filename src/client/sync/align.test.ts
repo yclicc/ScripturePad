@@ -107,6 +107,21 @@ describe("alignVerses", () => {
     ]);
   });
 
+  it("folds verses into a bridge marked as one verse", () => {
+    // Urdu Geo prints Ezekiel 1:1–3 as a single verse 1 ending at 3.
+    const bridged = toVerses(
+      passage([{ ...line(1, "v1-3"), numberEnd: 3 }, line(4, "v4")]),
+      3,
+    );
+    const rows = alignVerses([verses(1, 2, 3, 4), bridged]);
+    expect(
+      rows.map((r) => [r.verseStart, r.verseEnd, r.cells.map(text)]),
+    ).toEqual([
+      [1, 3, ["v1 / v2 / v3", "v1-3"]],
+      [4, 4, ["v4", "v4"]],
+    ]);
+  });
+
   it("folds a gap in the last row backwards", () => {
     const rows = alignVerses([verses(1, 2), verses(1)]);
     expect(rows.map((r) => r.cells.map(text))).toEqual([["v1 / v2", "v1"]]);
@@ -153,6 +168,14 @@ describe("paginate", () => {
       { start: 0, end: 2 },
       { start: 2, end: 4 },
       { start: 4, end: 5 },
+    ]);
+  });
+
+  it("starts a new screen at each break", () => {
+    expect(paginate(extents(20, 20, 20, 20), 100, new Set([1, 3]))).toEqual([
+      { start: 0, end: 1 },
+      { start: 1, end: 3 },
+      { start: 3, end: 4 },
     ]);
   });
 

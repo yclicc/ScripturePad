@@ -8,6 +8,7 @@
  *
  * Relevant markers in the source HTML:
  *   <span class="yv-v" v="16">      verse boundary, number in `v`
+ *   <span class="yv-v" v="1" ev="3">  bridged verse 1–3, as one marker
  *   <span class="yv-vlbl">16</span> printed verse label (dropped; redundant)
  *   <div class="q1">/<div class="q2">  poetry lines
  *   <div class="s1 yv-h">           section heading
@@ -32,6 +33,11 @@ export interface PassageSpan {
 export interface PassageLine {
   /** Verse number when this line starts a verse; null when it continues one. */
   number: number | null;
+  /**
+   * Last verse of a bridged verse ("1–3") that the source marks with a single
+   * `ev` marker. Absent for an ordinary verse.
+   */
+  numberEnd?: number;
   spans: PassageSpan[];
   /** 0 for prose, 1+ for poetry indent levels. */
   indent: number;
@@ -86,10 +92,13 @@ export function parsePassageLines(
   let skipDepth = 0;
   /** Number waiting to be attached to the next line that receives text. */
   let pendingNumber: number | null = null;
+  let pendingEnd: number | null = null;
 
   const startLine = (): PassageLine => {
     const line: PassageLine = { number: pendingNumber, spans: [], indent };
+    if (pendingEnd !== null) line.numberEnd = pendingEnd;
     pendingNumber = null;
+    pendingEnd = null;
     lines.push(line);
     return line;
   };
@@ -136,6 +145,11 @@ export function parsePassageLines(
       const verseAttr = /\sv="(\d+)"/.exec(attributes);
       if (className.includes("yv-v") && verseAttr) {
         pendingNumber = Number(verseAttr[1]);
+        // Some versions bridge verses with one marker, `v="1" ev="3"`, where
+        // others print a marker per verse.
+        const endAttr = /\sev="(\d+)"/.exec(attributes);
+        const end = endAttr ? Number(endAttr[1]) : null;
+        pendingEnd = end !== null && end > pendingNumber ? end : null;
         current = null;
         continue;
       }
