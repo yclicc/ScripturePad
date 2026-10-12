@@ -130,6 +130,12 @@ describe("parseSyncPath", () => {
     expect(first("/sync/JHN.3.21-16")).toBeNull();
     expect(first("/sync/XYZ.3.16")).toBeNull();
   });
+
+  it("rejects a backwards range written in words", () => {
+    // Prose detection reads this as John 3:18; an address must not.
+    expect(first("/sync/John+3:18-16")).toBeNull();
+    expect(first("/sync/Genesis+3:1-2:5")).toBeNull();
+  });
 });
 
 describe("parseVersionIds", () => {

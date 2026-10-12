@@ -18,7 +18,7 @@
 import {
   formatReference,
   isBookCode,
-  parseReference,
+  findReferences,
   type ScriptureReference,
 } from "./references.ts";
 
@@ -136,6 +136,18 @@ function parseContinuation(
 }
 
 /**
+ * The reference only when it is the whole of the text. Prose detection reads
+ * "John 3:18-16" as John 3:18, since it is usually a range still being typed;
+ * in an address that would quietly show less than was asked for.
+ */
+function whole(text: string): ScriptureReference | null {
+  const [found] = findReferences(text);
+  return found && found.start === 0 && found.end === text.length
+    ? found.reference
+    : null;
+}
+
+/**
  * Read a list of readings separated by commas or semicolons.
  *
  * Null when any part is not a reference, so the caller can say so rather
@@ -153,7 +165,7 @@ export function parseReadings(text: string): ScriptureReference[] | null {
     const reference =
       parseUsfm(compact) ??
       (previous ? parseContinuation(compact, previous) : null) ??
-      parseReference(trimmed);
+      whole(trimmed);
     if (!reference) return null;
     references.push(reference);
   }

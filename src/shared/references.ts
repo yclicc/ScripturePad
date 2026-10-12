@@ -177,7 +177,9 @@ const REFERENCE_PATTERN = new RegExp(
     `\\s+(\\d{1,3})` +
     `(?::(\\d{1,3})(?:\\s*[-–]\\s*(?:(\\d{1,3})\\s*:\\s*)?(\\d{1,3}))?` +
     `|\\s*[-–]\\s*(?!${NUMBERED_BOOK})(\\d{1,3})(?![\\d:]))?`,
-  "gi",
+  // `d` records each group's offsets, so a backwards range can be cut back to
+  // its opening reference.
+  "gid",
 );
 
 /**
@@ -219,25 +221,34 @@ export function findReferences(
 
     const chapter = Number(chapterRaw);
     const verseStart = startRaw ? Number(startRaw) : null;
-    const verseEnd = endRaw ? Number(endRaw) : verseStart;
+    let verseEnd = endRaw ? Number(endRaw) : verseStart;
     // Absent end chapter means the range stays inside the opening chapter.
-    const endChapter = endChapterRaw ? Number(endChapterRaw) : chapter;
+    let endChapter = endChapterRaw ? Number(endChapterRaw) : chapter;
+    let end = match.index + match[0].length;
 
-    // Backwards ranges are typos, not references — in either dimension.
-    if (endChapter < chapter) continue;
-    if (
-      endChapter === chapter &&
-      verseStart !== null &&
-      verseEnd !== null &&
-      verseEnd < verseStart
-    ) {
-      continue;
+    // A backwards range — in either dimension — is usually one still being
+    // typed: "Proverbs 4:23-2" on the way to "4:23-27". Dropping the whole
+    // reference made the editor's prompt vanish mid-word and reappear a
+    // keystroke later, so the range is cut back to its opening reference
+    // instead, the same reading "4:23-" already gets.
+    const backwards =
+      endChapter < chapter ||
+      (endChapter === chapter &&
+        verseStart !== null &&
+        verseEnd !== null &&
+        verseEnd < verseStart);
+    if (backwards) {
+      endChapter = chapter;
+      verseEnd = verseStart;
+      // Group 3 is the opening verse; group 2 the chapter when there is none.
+      const opening = match.indices?.[startRaw ? 3 : 2];
+      if (opening) end = opening[1];
     }
 
     found.push({
       reference: { book, chapter, verseStart, endChapter, verseEnd },
       start: match.index,
-      end: match.index + match[0].length,
+      end,
     });
   }
 

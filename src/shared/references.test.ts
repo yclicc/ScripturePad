@@ -103,8 +103,21 @@ describe("parseReference", () => {
     });
   });
 
-  it("rejects a backwards range", () => {
-    expect(parseReference("John 3:18-16")).toBeNull();
+  it("reads a backwards range as its opening verse", () => {
+    // Mostly a range still being typed: "4:23-2" on the way to "4:23-27".
+    expect(findReferences("Proverbs 4:23-2")).toEqual([
+      {
+        reference: {
+          book: "PRO", chapter: 4, verseStart: 23, endChapter: 4, verseEnd: 23,
+        },
+        start: 0,
+        end: "Proverbs 4:23".length,
+      },
+    ]);
+    expect(parseReference("John 3:18-16")).toMatchObject({
+      verseStart: 18,
+      verseEnd: 18,
+    });
   });
 
   it("parses a range spanning chapters", () => {
@@ -163,8 +176,14 @@ describe("parseReference", () => {
     });
   });
 
-  it("rejects a backwards range across chapters", () => {
-    expect(parseReference("Genesis 3:1-2:5")).toBeNull();
+  it("reads a backwards range across chapters as its opening verse", () => {
+    expect(parseReference("Genesis 3:1-2:5")).toEqual({
+      book: "GEN", chapter: 3, verseStart: 1, endChapter: 3, verseEnd: 1,
+    });
+    // A whole-chapter range part-typed: "Luke 12-1" on the way to "12-13".
+    const [found] = findReferences("Luke 12-1");
+    expect(found?.reference).toMatchObject({ chapter: 12, endChapter: 12 });
+    expect(found?.end).toBe("Luke 12".length);
   });
 
   it("keeps single-chapter ranges unchanged", () => {

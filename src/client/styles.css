@@ -1447,8 +1447,21 @@ body {
     margin-block: 0.5em;
     background: none;
     border-inline-start: 2pt solid #999;
-    /* Keep a quotation whole rather than split across a page break. */
-    break-inside: avoid;
+  }
+
+  /*
+   * A quotation runs on across a page break like any other paragraph. Keeping
+   * it whole pushed a long passage to a fresh sheet and left the rest of the
+   * page blank. Only the reference is held to the text it introduces, and a
+   * break never strands a lone line at either side.
+   */
+  .scripture--block .scripture__ref {
+    break-after: avoid;
+  }
+
+  .scripture--block .scripture__text {
+    orphans: 2;
+    widows: 2;
   }
 
   .scripture--block .scripture__text {
