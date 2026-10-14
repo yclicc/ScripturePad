@@ -23,6 +23,13 @@ const MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
 export type Theme = "system" | "light" | "dark";
 
+/**
+ * How the translations sit relative to one another. "auto" stacks them when
+ * the window is taller than it is wide, as on a phone held upright, where
+ * side-by-side columns would be a few words wide.
+ */
+export type Layout = "auto" | "horizontal" | "vertical";
+
 /** Space kept clear at each edge of the screen, in CSS pixels. */
 export interface Margins {
   top: number;
@@ -39,6 +46,7 @@ export interface SyncSettings {
   theme: Theme;
   /** Even out column lengths by scaling each column's text. */
   balance: boolean;
+  layout: Layout;
 }
 
 export const FONT_SIZE_MIN = 14;
@@ -51,6 +59,7 @@ export const DEFAULT_SETTINGS: SyncSettings = {
   margins: { top: 0, right: 0, bottom: 0, left: 0 },
   theme: "system",
   balance: true,
+  layout: "auto",
 };
 
 function clamp(value: unknown, min: number, max: number, fallback: number) {
@@ -91,6 +100,10 @@ export function normaliseSettings(input: unknown): SyncSettings {
     },
     theme: raw.theme === "light" || raw.theme === "dark" ? raw.theme : "system",
     balance: typeof raw.balance === "boolean" ? raw.balance : true,
+    layout:
+      raw.layout === "horizontal" || raw.layout === "vertical"
+        ? raw.layout
+        : "auto",
   };
 }
 

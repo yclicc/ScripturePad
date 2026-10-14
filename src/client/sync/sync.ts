@@ -224,8 +224,17 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
   root.className = "sync";
   mount.replaceChildren(root);
 
+  // "Taller than it is wide": the window, not the stage, so margins set for
+  // a projector do not flip the layout.
+  const portrait = window.matchMedia("(orientation: portrait)");
   const applyAppearance = () => {
     root.dataset.theme = settings.theme;
+    root.dataset.layout =
+      settings.layout === "auto"
+        ? portrait.matches
+          ? "vertical"
+          : "horizontal"
+        : settings.layout;
     const { top, right, bottom, left } = settings.margins;
     root.style.setProperty("--m-top", `${top}px`);
     root.style.setProperty("--m-right", `${right}px`);
@@ -739,7 +748,27 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
     if (action === "settings") togglePanel();
   });
 
-  body.addEventListener("click", (event) => {
+  /**
+   * A tap on the right-hand third of the screen is a Next press, and on the
+   * left-hand third a Back press, with nothing drawn there to show it. Touch
+   * and pen only: a mouse keeps clicking a verse to jump to it, and has the
+   * keys and buttons besides. The middle third still jumps to a verse.
+   */
+  let pointerType = "";
+  const tapStep = (event: MouseEvent): -1 | 0 | 1 => {
+    if (pointerType !== "touch" && pointerType !== "pen") return 0;
+    const third = window.innerWidth / 3;
+    if (event.clientX > third * 2) return 1;
+    if (event.clientX < third) return -1;
+    return 0;
+  };
+
+  stage.addEventListener("click", (event) => {
+    const step = tapStep(event);
+    if (step !== 0) {
+      go(cursor + step);
+      return;
+    }
     const row = (event.target as HTMLElement).closest<HTMLElement>(
       ".sync__row",
     );
@@ -818,8 +847,19 @@ export async function mountSync(mount: HTMLElement): Promise<void> {
     }, 2500);
   };
   root.addEventListener("pointermove", wake);
-  root.addEventListener("pointerdown", wake);
+  root.addEventListener("pointerdown", (event) => {
+    pointerType = event.pointerType;
+    // Turning the page should not bring the controls up over the verses.
+    if (stage.contains(event.target as Node) && tapStep(event) !== 0) return;
+    wake();
+  });
   wake();
+
+  portrait.addEventListener("change", () => {
+    if (settings.layout !== "auto") return;
+    applyAppearance();
+    requestRelayout();
+  });
 
   // Margins, full screen and window size all change the viewport. The
   // observer also fires once on attaching, when nothing has changed.

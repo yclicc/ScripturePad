@@ -23,6 +23,8 @@
   position: fixed;
   inset: 0;
   overflow: hidden;
+  /* Tapping the right side turns the page; no double-tap zoom in between. */
+  touch-action: manipulation;
   background: var(--sync-bg);
   color: var(--sync-ink);
   color-scheme: light;
@@ -108,6 +110,28 @@
 .sync__label-ref,
 .sync__label-version {
   unicode-bidi: isolate;
+}
+
+/*
+ * Stacked: each verse row holds its translations one above another, in the
+ * same order as the labels, so highlighting and paging are unchanged. The
+ * labels wrap along one line rather than taking a line each.
+ */
+.sync[data-layout="vertical"] .sync__labels {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1.5em;
+  row-gap: 0.2em;
+}
+
+.sync[data-layout="vertical"] .sync__row {
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: calc(var(--sync-font) * 0.2);
+  padding-block: calc(var(--sync-font) * 0.3);
+}
+
+.sync[data-layout="vertical"] .sync__row + .sync__row {
+  border-top: 1px solid var(--sync-line);
 }
 
 .sync__label--error {

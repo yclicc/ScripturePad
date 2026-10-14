@@ -24,6 +24,7 @@ describe("settings round trip", () => {
       margins: { top: 10, right: 0, bottom: 20, left: 5 },
       theme: "dark" as const,
       balance: false,
+      layout: "vertical" as const,
     };
     expect(parseSettings(serialiseSettings(settings))).toEqual(settings);
   });
@@ -43,6 +44,7 @@ describe("normaliseSettings", () => {
         margins: { top: -5, left: 5000, right: "a" },
         theme: "neon",
         balance: "yes",
+        layout: "diagonal",
       }),
     ).toEqual({
       versionIds: [113, 5, 6, 7],
@@ -50,6 +52,7 @@ describe("normaliseSettings", () => {
       margins: { top: 0, right: 0, bottom: 0, left: 1000 },
       theme: "system",
       balance: true,
+      layout: "auto",
     });
   });
 });

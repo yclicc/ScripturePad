@@ -12,6 +12,7 @@ import {
   FONT_SIZE_MAX,
   FONT_SIZE_MIN,
   MARGIN_MAX,
+  type Layout,
   type Margins,
   type SyncSettings,
   type Theme,
@@ -435,6 +436,25 @@ export function createPanel(options: PanelOptions): Panel {
     );
   }
 
+  const layoutInputs = {} as Record<Layout, HTMLInputElement>;
+  const layoutGroup = el("div", { className: "sync-panel__segmented" });
+  layoutGroup.setAttribute("role", "radiogroup");
+  layoutGroup.setAttribute("aria-label", "Layout");
+  for (const [value, label] of [
+    ["auto", "Automatic"],
+    ["horizontal", "Side by side"],
+    ["vertical", "Stacked"],
+  ] as const) {
+    const input = el("input", { type: "radio", name: "sync-layout", value });
+    input.addEventListener("change", () => {
+      if (input.checked) update({ layout: value });
+    });
+    layoutInputs[value] = input;
+    layoutGroup.append(
+      el("label", {}, input, el("span", { textContent: label })),
+    );
+  }
+
   const balanceInput = el("input", { type: "checkbox" });
   balanceInput.addEventListener("change", () =>
     update({ balance: balanceInput.checked }),
@@ -487,6 +507,17 @@ export function createPanel(options: PanelOptions): Panel {
       addHint,
     ),
     section(
+      "Layout",
+      layoutGroup,
+      el("p", {
+        className: "sync-panel__hint",
+        textContent:
+          "Automatic puts the translations side by side on a wide screen, " +
+          "and one above another, verse by verse, on a tall one such as a " +
+          "phone held upright.",
+      }),
+    ),
+    section(
       "Text size",
       el("div", { className: "sync-panel__row" }, fontInput, fontOutput),
       el(
@@ -517,7 +548,9 @@ export function createPanel(options: PanelOptions): Panel {
         textContent:
           "Next verse: → ↓ Space Page Down. Back: ← ↑ Page Up. " +
           "F: full screen. B: blank the screen. S: these settings. " +
-          "Home / End: start / end. Click a verse to jump to it.",
+          "Home / End: start / end. Click a verse to jump to it. On a " +
+          "touch screen, tap the right-hand side for the next verse and the " +
+          "left-hand side to go back.",
       }),
     ),
     section(
@@ -544,6 +577,7 @@ export function createPanel(options: PanelOptions): Panel {
       marginInputs[side].value = String(next.margins[side]);
     }
     themeInputs[next.theme].checked = true;
+    layoutInputs[next.layout].checked = true;
     balanceInput.checked = next.balance;
   };
   setSettings(settings);

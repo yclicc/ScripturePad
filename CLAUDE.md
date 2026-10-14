@@ -136,6 +136,15 @@ screen has been read, the next press brings up the next screenful.
   `Luke+2-3`. The first verse of each chapter is numbered `53:1`, since bare
   numbers restart. A whole-chapter range never ends in a numbered book's
   digit — "Psalm 23-1 John 4" stays two references.
+- **Layout**: `settings.layout` is `auto` (the default), `horizontal`, or
+  `vertical`. Auto stacks when the *window* is portrait (taller than wide), so
+  margins don't change which layout is used. Stacked keeps one grid row per
+  verse and puts that verse's translations one above another. Highlighting,
+  pagination and balancing work the same way in both layouts.
+- **Tap to step**: a touch or pen tap on the right third of the screen acts
+  like Next, and on the left third like Back, with nothing on screen to show
+  it, and does not bring the controls back. The middle third, and any mouse
+  click, still jumps to the verse clicked.
 - Screen margins are in **pixels**, each capped in CSS at 45% of the screen.
 - Copyright appears once, after the last verse (End, or one press past it).
 - **Urdu is set in Nastaliq**, on Sync and the reader alike, not the Naskh an
